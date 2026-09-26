@@ -1,6 +1,6 @@
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { AMAP_CONFIG, initAMapSecurity } from '../config/amap';
-import { Stop, Segment, RouteOption } from '../types/trip';
+import { Stop, Segment, RouteOption, OvernightStop } from '../types/trip';
 import { RoutePoi, RealDetourResult } from '../types/poi';
 import { RouteCalcResult } from '../types/map';
 import { verifiedStops } from '../data/stops';
@@ -14,6 +14,7 @@ class AMapService {
   private satelliteLayer: any = null;
   private routeLayers: Map<string, any[]> = new Map();
   private markerLayers: any[] = [];
+  private overnightMarker: any = null;
   private infoWindow: any = null;
   private isLoaded = false;
   private loadPromise: Promise<any> | null = null;
@@ -119,6 +120,8 @@ class AMapService {
     const api = await this.load();
     const startStop = verifiedStops[segment.start];
     const endStop = verifiedStops[segment.end];
+    const startCoord = segment.customStartCoord || startStop?.coord;
+    const endCoord = segment.customEndCoord || endStop?.coord;
 
     // 合并方案固有途经点与用户自定义添加的停靠点
     const defaultWaypoints = option.via.map((idx) => verifiedStops[idx].coord);
@@ -136,8 +139,8 @@ class AMapService {
           });
 
           driving.search(
-            startStop.coord,
-            endStop.coord,
+            startCoord,
+            endCoord,
             { waypoints },
             async (status: string, result: any) => {
               if (status !== 'complete' || !result?.routes?.[0]) {
@@ -192,12 +195,14 @@ class AMapService {
     return executeSearch(0);
   }
 
-  // 渲染所有路段的 Polyline
+  // 渲染所有路段的 Polyline (支持 Day 1 / Day 2 聚焦与高亮模式)
   renderRoutes(
     segments: Segment[],
     selectedOptions: Record<string, string>,
     routeResults: Record<string, RouteCalcResult>,
-    activeSegmentId: string
+    activeSegmentId: string,
+    activeDay: number | 'all' = 'all',
+    overnightStop: OvernightStop | null = null
   ) {
     if (!this.map || !this.api) return;
 
@@ -217,23 +222,30 @@ class AMapService {
       if (!res || !res.path || res.path.length < 2) return;
 
       const isActive = seg.id === activeSegmentId;
+      const isDayMatched = activeDay === 'all' || seg.day === activeDay;
+
+      // 颜色与透明度：根据 Day 聚焦与激活路段设定
       const color = isActive
         ? '#1875ff'
         : seg.day === 1
         ? '#ea580c'
         : '#059669';
 
+      const weight = isActive ? 9 : isDayMatched ? 5.5 : 3.5;
+      const opacity = isActive ? 0.95 : isDayMatched ? 0.75 : 0.22;
+      const zIndex = isActive ? 90 : isDayMatched ? (seg.day === 1 ? 50 : 45) : 20;
+
       const polyline = new this.api.Polyline({
         path: res.path,
         strokeColor: color,
-        strokeWeight: isActive ? 9 : 5,
-        strokeOpacity: isActive ? 0.95 : 0.65,
+        strokeWeight: weight,
+        strokeOpacity: opacity,
         isOutline: true,
         outlineColor: '#ffffff',
-        borderWeight: isActive ? 2.5 : 1.5,
+        borderWeight: isActive ? 2.5 : isDayMatched ? 1.5 : 0.8,
         lineJoin: 'round',
         lineCap: 'round',
-        zIndex: isActive ? 80 : 40,
+        zIndex,
         cursor: 'pointer'
       });
 
@@ -246,7 +258,115 @@ class AMapService {
       }
     });
 
+    // 联动渲染住宿点专属标记
+    this.renderOvernightMarker(overnightStop);
+
     return { allPolylines, activePolylines };
+  }
+
+  // 聚焦到具体某一天的路线
+  fitToDay(day: number, segments: Segment[]) {
+    if (!this.map) return;
+    const daySegIds = segments.filter((s) => s.day === day).map((s) => s.id);
+    const dayLayers: any[] = [];
+    daySegIds.forEach((id) => {
+      const layers = this.routeLayers.get(id);
+      if (layers) dayLayers.push(...layers);
+    });
+    if (dayLayers.length > 0) {
+      this.map.setFitView(dayLayers, false, [60, 60, 60, 60]);
+    }
+  }
+
+  // 渲染 Overnight Stop 专属床图标 Marker
+  renderOvernightMarker(
+    overnightStop: OvernightStop | null,
+    onClick?: (stop: OvernightStop) => void
+  ) {
+    if (!this.map || !this.api) return;
+
+    if (this.overnightMarker) {
+      this.map.remove(this.overnightMarker);
+      this.overnightMarker = null;
+    }
+
+    if (!overnightStop || !overnightStop.coord) return;
+
+    const content = document.createElement('div');
+    content.className = 'overnight-custom-marker';
+    content.style.cssText = `
+      background: #4338ca;
+      color: #ffffff;
+      border: 2.5px solid #ffffff;
+      border-radius: 99px;
+      padding: 4px 11px;
+      font-size: 11.5px;
+      font-weight: 800;
+      box-shadow: 0 4px 16px rgba(67, 56, 202, 0.45);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+      transform: translate(-50%, -50%);
+      z-index: 210;
+    `;
+    content.innerHTML = `
+      <span style="font-size: 13.5px;">🛏</span>
+      <span>今晚住宿 · ${overnightStop.name}</span>
+      <span style="background: rgba(255,255,255,0.22); padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;">
+        ${overnightStop.todayEta || '今晚'}
+      </span>
+    `;
+
+    const marker = new this.api.Marker({
+      position: overnightStop.coord,
+      content,
+      zIndex: 220
+    });
+
+    marker.on('click', () => {
+      if (onClick) onClick(overnightStop);
+      this.openOvernightInfoWindow(overnightStop);
+    });
+
+    this.map.add(marker);
+    this.overnightMarker = marker;
+  }
+
+  openOvernightInfoWindow(overnightStop: OvernightStop) {
+    if (!this.map || !this.api || !this.infoWindow) return;
+    const html = `
+      <div style="padding: 10px; font-family: system-ui, -apple-system, sans-serif; max-width: 280px;">
+        <div style="font-size: 10.5px; color: #4338ca; background: #e0e7ff; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-bottom: 6px; font-weight: 700;">
+          🛏 第一晚收车住宿
+        </div>
+        <div style="font-weight: 800; font-size: 14.5px; color: #0f172a; margin-bottom: 4px; line-height: 1.3;">
+          ${overnightStop.name}
+        </div>
+        <div style="font-size: 11.5px; color: #64748b; margin-bottom: 8px;">
+          ${overnightStop.address || overnightStop.city || '湖北省自驾走廊'}
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 5px; font-size: 11px; background: #f8fafc; padding: 8px; border-radius: 6px; margin-bottom: 8px; border: 1px solid #e2e8f0;">
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #64748b;">今日驾驶:</span>
+            <strong style="color: #0f172a;">${overnightStop.todayDrivingKm || '约 200'} km · 预计 ${overnightStop.todayEta || '17:30'} 抵达</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #64748b;">明日剩余:</span>
+            <strong style="color: #059669;">${overnightStop.tomorrowRemainingKm || '约 300'} km</strong>
+          </div>
+          ${overnightStop.decisionLabel ? `
+            <div style="display: flex; justify-content: space-between; margin-top: 2px;">
+              <span style="color: #64748b;">节奏特性:</span>
+              <span style="color: #4338ca; font-weight: 700;">${overnightStop.decisionLabel}</span>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+    this.infoWindow.setContent(html);
+    this.infoWindow.open(this.map, overnightStop.coord);
   }
 
   // 聚焦到指定路段或全程

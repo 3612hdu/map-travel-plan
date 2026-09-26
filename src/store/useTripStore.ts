@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Trip, Segment, Stop, RouteOption } from '../types/trip';
+import { Trip, Segment, Stop, RouteOption, OvernightStop } from '../types/trip';
 import { RoutePoi, FacilityCategory } from '../types/poi';
 import { VideoReference } from '../types/video';
 import { RouteCalcResult } from '../types/map';
@@ -7,6 +7,48 @@ import { initialSegments, tripMeta } from '../data/tripData';
 import { initialFacilities } from '../data/mockAmenities';
 import { initialVideos } from '../data/videoData';
 import { RoutePreference, DEFAULT_PREFERENCE } from '../types/preference';
+import { amapService } from '../services/amapService';
+
+export const defaultOvernightCandidates: OvernightStop[] = [
+  {
+    id: 'candidate-guangshui',
+    name: '广水应山宾馆 (广水市)',
+    coord: [113.825977, 31.617015],
+    address: '随州市广水市应山大道68号',
+    city: '随州市',
+    targetCityOrArea: '广水市',
+    day: 1,
+    sourceSegmentId: 's3',
+    rating: 4.6,
+    todayDrivingKm: 182,
+    todayDrivingDurationSec: 13500, // 3h45m
+    todayEta: '16:45',
+    tomorrowRemainingKm: 354,
+    tomorrowRemainingDurationSec: 23400, // 6h30m
+    decisionTag: 'today_relaxed',
+    decisionLabel: '今天更轻松',
+    decisionReason: '第一天开行约 3.8 小时，傍晚 16:45 前即可收车休整，避开夜路；次日还剩 354 km 需早出发。'
+  },
+  {
+    id: 'candidate-suizhou',
+    name: '随州齐星湖会馆 (随州市区)',
+    coord: [113.382324, 31.690275],
+    address: '随州市曾都区迎宾大道88号',
+    city: '随州市',
+    targetCityOrArea: '随州市',
+    day: 1,
+    sourceSegmentId: 's3',
+    rating: 4.8,
+    todayDrivingKm: 258,
+    todayDrivingDurationSec: 18600, // 5h10m
+    todayEta: '18:35',
+    tomorrowRemainingKm: 278,
+    tomorrowRemainingDurationSec: 18300, // 5h05m
+    decisionTag: 'more_balanced',
+    decisionLabel: '更均衡',
+    decisionReason: '两日驾驶时长最均衡 (今日 5.1h · 明日 5.0h)，体感平稳不易疲劳，市区商业与餐饮补给条件更优。'
+  }
+];
 
 interface TripStore {
   // 行程与段落
@@ -16,6 +58,19 @@ interface TripStore {
   activeSegmentId: string;
   selectedOptions: Record<string, string>; // segmentId -> optionId
   customWaypoints: Record<string, Stop[]>; // segmentId -> Stop[]
+
+  // Phase D: 出发时间与时间轴
+  dayStartTimes: Record<number, string>; // day -> "12:00"
+  setDayStartTime: (day: number, time: string) => void;
+
+  // Phase D: 住宿停靠与决策比较
+  overnightStop: OvernightStop | null;
+  overnightCandidates: OvernightStop[];
+  isComparisonModalOpen: boolean;
+  setIsComparisonModalOpen: (open: boolean) => void;
+  setOvernightStop: (stop: OvernightStop | null) => void;
+  addOvernightCandidate: (candidate: OvernightStop) => void;
+  removeOvernightCandidate: (candidateId: string) => void;
 
   // 高德算路缓存
   routeResults: Record<string, RouteCalcResult>;
@@ -84,6 +139,12 @@ export const useTripStore = create<TripStore>((set, get) => {
     selectedOptions: initialOptions,
     customWaypoints: {},
 
+    // Phase D 状态
+    dayStartTimes: { 1: '12:00', 2: '09:00' },
+    overnightStop: null,
+    overnightCandidates: defaultOvernightCandidates,
+    isComparisonModalOpen: false,
+
     routeResults: {},
     isRouting: false,
 
@@ -108,6 +169,127 @@ export const useTripStore = create<TripStore>((set, get) => {
 
     setPreference: (pref) =>
       set((state) => ({ preference: { ...state.preference, ...pref } })),
+
+    setDayStartTime: (day, time) =>
+      set((state) => ({
+        dayStartTimes: {
+          ...state.dayStartTimes,
+          [day]: time
+        }
+      })),
+
+    setIsComparisonModalOpen: (open) => set({ isComparisonModalOpen: open }),
+
+    addOvernightCandidate: (candidate) =>
+      set((state) => {
+        if (state.overnightCandidates.some((c) => c.id === candidate.id || c.name === candidate.name)) {
+          return state;
+        }
+        return {
+          overnightCandidates: [...state.overnightCandidates, candidate]
+        };
+      }),
+
+    removeOvernightCandidate: (candidateId) =>
+      set((state) => ({
+        overnightCandidates: state.overnightCandidates.filter((c) => c.id !== candidateId)
+      })),
+
+    setOvernightStop: (stop) => {
+      const state = get();
+      if (stop) {
+        // 更新或加入候选列表
+        const exists = state.overnightCandidates.some((c) => c.id === stop.id || c.name === stop.name);
+        const updatedCandidates = exists
+          ? state.overnightCandidates.map((c) => (c.id === stop.id || c.name === stop.name ? stop : c))
+          : [...state.overnightCandidates, stop];
+
+        const updatedSegments = state.segments.map((seg) => {
+          if (seg.id === 's3') {
+            return {
+              ...seg,
+              customEndCoord: stop.coord,
+              customEndName: stop.name,
+              title: `大悟 → ${stop.name}`
+            };
+          }
+          if (seg.id === 's4') {
+            return {
+              ...seg,
+              customStartCoord: stop.coord,
+              customStartName: stop.name,
+              title: `${stop.name} → 襄阳`
+            };
+          }
+          return seg;
+        });
+
+        set({
+          overnightStop: stop,
+          overnightCandidates: updatedCandidates,
+          segments: updatedSegments
+        });
+
+        // 重新规划 s3 与 s4
+        const s3 = updatedSegments.find((s) => s.id === 's3');
+        const s4 = updatedSegments.find((s) => s.id === 's4');
+        if (s3) {
+          const opt = s3.options.find((o) => o.id === (state.selectedOptions['s3'] || s3.chosen)) || s3.options[0];
+          amapService
+            .planSegment(s3, opt, state.customWaypoints['s3'] || [], state.preference)
+            .then((res) => get().setRouteResult(`s3:${opt.id}`, res))
+            .catch((err) => console.warn('s3 重新算路失败:', err));
+        }
+        if (s4) {
+          const opt = s4.options.find((o) => o.id === (state.selectedOptions['s4'] || s4.chosen)) || s4.options[0];
+          amapService
+            .planSegment(s4, opt, state.customWaypoints['s4'] || [], state.preference)
+            .then((res) => get().setRouteResult(`s4:${opt.id}`, res))
+            .catch((err) => console.warn('s4 重新算路失败:', err));
+        }
+      } else {
+        // 取消住宿，恢复原始 Day 边界
+        const updatedSegments = state.segments.map((seg) => {
+          if (seg.id === 's3') {
+            const next = { ...seg };
+            delete next.customEndCoord;
+            delete next.customEndName;
+            next.title = '大悟 → 随州';
+            return next;
+          }
+          if (seg.id === 's4') {
+            const next = { ...seg };
+            delete next.customStartCoord;
+            delete next.customStartName;
+            next.title = '随州 → 襄阳';
+            return next;
+          }
+          return seg;
+        });
+
+        set({
+          overnightStop: null,
+          segments: updatedSegments
+        });
+
+        const s3 = updatedSegments.find((s) => s.id === 's3');
+        const s4 = updatedSegments.find((s) => s.id === 's4');
+        if (s3) {
+          const opt = s3.options.find((o) => o.id === (state.selectedOptions['s3'] || s3.chosen)) || s3.options[0];
+          amapService
+            .planSegment(s3, opt, state.customWaypoints['s3'] || [], state.preference)
+            .then((res) => get().setRouteResult(`s3:${opt.id}`, res))
+            .catch((err) => console.warn('s3 恢复算路失败:', err));
+        }
+        if (s4) {
+          const opt = s4.options.find((o) => o.id === (state.selectedOptions['s4'] || s4.chosen)) || s4.options[0];
+          amapService
+            .planSegment(s4, opt, state.customWaypoints['s4'] || [], state.preference)
+            .then((res) => get().setRouteResult(`s4:${opt.id}`, res))
+            .catch((err) => console.warn('s4 恢复算路失败:', err));
+        }
+      }
+    },
 
     setActiveDay: (day) => {
       set({ activeDay: day });

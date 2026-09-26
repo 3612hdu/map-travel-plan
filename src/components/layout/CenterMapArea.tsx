@@ -13,6 +13,7 @@ export const CenterMapArea: React.FC = () => {
   const {
     segments,
     activeSegmentId,
+    activeDay,
     selectedOptions,
     routeResults,
     customWaypoints,
@@ -22,7 +23,8 @@ export const CenterMapArea: React.FC = () => {
     focusPoi,
     addWaypoint,
     preference,
-    showFacilitiesOnMap
+    showFacilitiesOnMap,
+    overnightStop
   } = useTripStore();
 
   const currentSeg = segments.find((s) => s.id === activeSegmentId);
@@ -86,7 +88,7 @@ export const CenterMapArea: React.FC = () => {
     });
   }, []);
 
-  // 当 routeResults、selectedOptions 或 activeSegmentId 变化时重绘路线
+  // 当 routeResults、selectedOptions、activeSegmentId、activeDay 或 overnightStop 变化时重绘路线
   useEffect(() => {
     const map = amapService.getMap();
     if (!map) return;
@@ -95,12 +97,18 @@ export const CenterMapArea: React.FC = () => {
       segments,
       selectedOptions,
       routeResults,
-      activeSegmentId
+      activeSegmentId,
+      activeDay,
+      overnightStop
     );
 
-    // 聚焦到当前路段
-    amapService.fitToSegment(activeSegmentId);
-  }, [segments, selectedOptions, routeResults, activeSegmentId]);
+    // 聚焦策略
+    if (activeDay === 1 || activeDay === 2) {
+      amapService.fitToDay(activeDay, segments);
+    } else {
+      amapService.fitToSegment(activeSegmentId);
+    }
+  }, [segments, selectedOptions, routeResults, activeSegmentId, activeDay, overnightStop]);
 
   // 当设施 POIs 变化或选中状态变化时，渲染地图 POI Marker
   useEffect(() => {

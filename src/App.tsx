@@ -3,6 +3,7 @@ import { Header } from './components/layout/Header';
 import { SidebarLeft } from './components/layout/SidebarLeft';
 import { CenterMapArea } from './components/layout/CenterMapArea';
 import { RightPanel } from './components/layout/RightPanel';
+import { OvernightDecisionModal } from './components/overnight/OvernightDecisionModal';
 import { useTripStore } from './store/useTripStore';
 
 export const App: React.FC = () => {
@@ -19,6 +20,7 @@ export const App: React.FC = () => {
         <CenterMapArea />
         <RightPanel />
       </div>
+      <OvernightDecisionModal />
     </div>
   );
 };

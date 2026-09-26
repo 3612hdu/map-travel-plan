@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Calendar, Compass, Bookmark, Save, Share2, Star } from 'lucide-react';
+import { Calendar, Compass, Bookmark, Save, Share2, Star, Layers, Bed, Clock } from 'lucide-react';
 import { useTripStore } from '../../store/useTripStore';
 import { amapService } from '../../services/amapService';
 import { formatDuration } from '../../utils/geo';
+import { TripTimeline } from '../timeline/TripTimeline';
 
 export const SidebarLeft: React.FC = () => {
   const {
@@ -12,7 +13,9 @@ export const SidebarLeft: React.FC = () => {
     activeSegmentId,
     setActiveSegment,
     selectedOptions,
-    routeResults
+    routeResults,
+    overnightStop,
+    setIsComparisonModalOpen
   } = useTripStore();
 
   const [activeNavTab, setActiveNavTab] = useState<'plan' | 'recommend' | 'saved'>('plan');
@@ -23,6 +26,15 @@ export const SidebarLeft: React.FC = () => {
   const handleSelectSegment = (segId: string) => {
     setActiveSegment(segId);
     amapService.fitToSegment(segId);
+  };
+
+  const handleDayTabClick = (day: number | 'all') => {
+    setActiveDay(day);
+    if (day === 'all') {
+      amapService.fitToAll();
+    } else {
+      amapService.fitToDay(day, segments);
+    }
   };
 
   const renderSegmentItem = (seg: any, globalIdx: number) => {
@@ -111,36 +123,137 @@ export const SidebarLeft: React.FC = () => {
         </button>
       </div>
 
+      {/* Day 模式切换栏 (全程 / DAY 1 / DAY 2) */}
+      <div
+        className="day-mode-filter-bar"
+        style={{
+          display: 'flex',
+          gap: '6px',
+          padding: '8px 12px',
+          background: '#f8fafc',
+          borderBottom: '1px solid #e2e8f0'
+        }}
+      >
+        <button
+          type="button"
+          id="btn-day-filter-all"
+          className={`filter-pill ${activeDay === 'all' ? 'active' : ''}`}
+          onClick={() => handleDayTabClick('all')}
+          style={{ flex: 1, padding: '4px 0', fontSize: '11.5px', justifyContent: 'center' }}
+        >
+          <Layers size={12} />
+          <span>全程</span>
+        </button>
+        <button
+          type="button"
+          id="btn-day-filter-1"
+          className={`filter-pill ${activeDay === 1 ? 'active' : ''}`}
+          onClick={() => handleDayTabClick(1)}
+          style={{ flex: 1, padding: '4px 0', fontSize: '11.5px', justifyContent: 'center' }}
+        >
+          <span>DAY 1</span>
+        </button>
+        <button
+          type="button"
+          id="btn-day-filter-2"
+          className={`filter-pill ${activeDay === 2 ? 'active' : ''}`}
+          onClick={() => handleDayTabClick(2)}
+          style={{ flex: 1, padding: '4px 0', fontSize: '11.5px', justifyContent: 'center' }}
+        >
+          <span>DAY 2</span>
+        </button>
+      </div>
+
       {/* 行程分天与分段列表 */}
       <div className="sidebar-content-scroll">
+        {/* 行程时间轴卡片 */}
+        <TripTimeline dayFilter={activeDay} />
+
         {/* DAY 1 */}
-        <div className="day-block-header">
-          <div className="day-badge-title">
-            <span className="day-tag">DAY 1</span>
-            <span className="day-meta-text">3段 · 约 258 km</span>
+        <div style={{ marginBottom: '16px' }}>
+          <div className={`day-block-header ${activeDay === 1 ? 'active-day-block' : ''}`}>
+            <div className="day-badge-title">
+              <span className="day-tag">DAY 1</span>
+              <span className="day-meta-text">3段 · 约 258 km</span>
+            </div>
+          </div>
+          {day1Segments.map((seg, idx) => renderSegmentItem(seg, idx + 1))}
+
+          {/* 第一晚住宿决策提示卡 */}
+          <div
+            id="sidebar-overnight-summary-card"
+            style={{
+              marginTop: '10px',
+              padding: '10px 12px',
+              background: overnightStop ? '#f5f3ff' : '#f8fafc',
+              border: `1.5px solid ${overnightStop ? '#c7d2fe' : '#e2e8f0'}`,
+              borderRadius: '10px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Bed size={14} color={overnightStop ? '#4338ca' : '#64748b'} />
+                <span style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>
+                  {overnightStop ? `今晚住宿 · ${overnightStop.name}` : '第一晚住宿: 随州市区 (默认)'}
+                </span>
+              </div>
+              <button
+                type="button"
+                id="btn-sidebar-compare-modal"
+                onClick={() => setIsComparisonModalOpen(true)}
+                style={{
+                  background: '#4338ca',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '3px 8px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                方案比较
+              </button>
+            </div>
+            {overnightStop && (
+              <div style={{
+                fontSize: '11px',
+                color: '#64748b',
+                marginTop: '4px',
+                display: 'flex',
+                justifyContent: 'space-between'
+              }}>
+                <span>预计 {overnightStop.todayEta || '17:30'} 抵达</span>
+                <span style={{ color: '#4338ca', fontWeight: 700 }}>{overnightStop.decisionLabel || '已选用'}</span>
+              </div>
+            )}
           </div>
         </div>
-        {day1Segments.map((seg, idx) => renderSegmentItem(seg, idx + 1))}
 
         {/* DAY 2 */}
-        <div className="day-block-header" style={{ marginTop: '16px' }}>
-          <div className="day-badge-title">
-            <span className="day-tag">DAY 2</span>
-            <span className="day-meta-text">3段 · 约 278 km</span>
+        <div>
+          <div className={`day-block-header ${activeDay === 2 ? 'active-day-block' : ''}`}>
+            <div className="day-badge-title">
+              <span className="day-tag">DAY 2</span>
+              <span className="day-meta-text">3段 · 约 278 km</span>
+            </div>
           </div>
+          {day2Segments.map((seg, idx) => renderSegmentItem(seg, idx + 4))}
         </div>
-        {day2Segments.map((seg, idx) => renderSegmentItem(seg, idx + 4))}
       </div>
 
       {/* 底部保存与分享操作 */}
       <div className="sidebar-footer-actions">
         <button
           type="button"
+          id="btn-footer-compare-modal"
           className="btn-sidebar-action"
-          onClick={() => alert('自驾规划已自动保存到本地！')}
+          onClick={() => setIsComparisonModalOpen(true)}
+          style={{ background: '#4338ca', color: '#ffffff' }}
         >
-          <Save size={14} />
-          <span>保存行程</span>
+          <Bed size={14} />
+          <span>住宿比较</span>
         </button>
         <button
           type="button"
@@ -157,3 +270,4 @@ export const SidebarLeft: React.FC = () => {
     </aside>
   );
 };
+

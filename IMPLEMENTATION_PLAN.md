@@ -512,12 +512,94 @@ export interface VideoReference {
 - [x] 列表截取与分页交互：默认展示 Top 20 最相关地点，支持一键展开/收起；全程模式按 Day 与 Segment 层次结构分组呈现；
 - [x] 自动化专项回归测试：编写并通过 `test-phase-c1.mjs`，五项专项指标 100% PASS。
 
-### Phase D：沿途设施深度交互与加入停靠点
-- [ ] 右侧设施面板分类切换（酒店/餐饮/油站/充电/厕所/停车）；
-- [ ] 列表卡片与地图 Marker 的双向聚焦联动；
-- [ ] 实现【加入停靠点】真操作，动态将 POI 插入 Driving 并重新算路；
-- [ ] 支持 Undo 撤销停靠点；
-- [ ] 刷新行程统计与道路经过点。
+### Phase D：Trip Timeline & Overnight Decision (行程时间轴与住宿决策系统)
+
+> **重新定义说明**：原 Phase D 规划的“加入停靠点、真实路线重算、Undo、Marker 联动”等能力已在 Phase B/C/C.1 中圆满落地。本阶段聚焦将规划器升级为真正的“自驾行程编排器”，核心解决“今天开到哪里”、“住广水还是随州”、“如果今晚住这里明天还剩多少路”的行宿决策问题。
+
+#### 1. Trip 数据结构扩展设计
+- **`OvernightStop`** (`src/types/trip.ts`)：
+  - `id`: 唯一标识（如 `overnight-poi-123`）
+  - `poiId`, `name`, `coord: [number, number]`, `address`, `city`
+  - `day`: 对应结束的天数（通常为 Day 1）
+  - `sourceSegmentId`: 来源路段（如 `s3`）
+  - `targetCityOrArea`: 城市归属（如 “广水市” / “随州市”）
+  - `rating`: 酒店评分
+  - 动态计算属性：`todayDrivingKm`, `todayDrivingDurationSec`, `todayEta`, `tomorrowRemainingKm`, `tomorrowRemainingDurationSec`, `decisionTag` ('more_balanced' | 'today_relaxed' | 'tomorrow_relaxed'), `decisionLabel` ('更均衡' | '今天更轻松' | '明天更轻松'), `decisionReason`。
+- **`TimelineItem`** (`src/types/trip.ts`)：
+  - `id`, `day`: 天数 (1 | 2)
+  - `type`: 'departure' | 'segmentStart' | 'segmentEnd' | 'waypoint' | 'overnight' | 'rest' | 'meal'
+  - `title`: 节点名称（如 “黄冈师范学院出发”、“麻城市”、“今晚住宿·广水应山饭店”）
+  - `subTitle`: 辅助说明（如 “国道平稳北上”、“休息 15 分钟”）
+  - `plannedTime`: 预计时间（如 “12:00”、“13:45”；若未算完则必须严格显示 “等待路线数据”，严禁假数字）
+  - `durationMinutes`: 耗时或停留分钟数
+  - `distanceKm`: 距离
+  - `isOvernight`: 是否为住宿节点
+  - `isPendingRoute`: 是否处于等待路线数据态
+- **`DayPlan` & Trip Store 扩充** (`src/types/trip.ts`, `src/store/useTripStore.ts`)：
+  - `dayStartTimes: Record<number, string>`：用户可设定的各天出发时间（Day 1 默认 '12:00'，Day 2 默认 '09:00'）
+  - `overnightStop: OvernightStop | null`：当前生效的住宿停靠点
+  - `overnightCandidates: OvernightStop[]`：住宿候选列表（支持 2～3 个方案横向对比）
+  - `isComparisonModalOpen: boolean`：住宿对比抽屉/弹窗开闭状态
+
+#### 2. Overnight Stop 如何改变 Day 边界
+- 原始边界：Day 1 包含 s1、s2、s3（结束于随州市区 stops[5]）；Day 2 包含 s4、s5、s6（起始于随州市区 stops[5]）。
+- 设定 Overnight Stop 后的动态边界调整：
+  - **Day 1 终点重定向**：s3 终点从随州市区变为该住宿点坐标（`customEndCoord: overnightStop.coord`, `customEndName: overnightStop.name`）。
+  - **Day 2 起点重定向**：s4 起点从随州市区变为该住宿点坐标（`customStartCoord: overnightStop.coord`, `customStartName: overnightStop.name`）。
+  - **途经逻辑保障**：若住宿点选在广水，Day 2 的 s4 自动将随州与枣阳设为途经节点，路线依然沿走廊前往襄阳。
+  - **取消住宿恢复**：清除 `overnightStop` 时，s3 与 s4 清空自定义端点坐标，自动重新请求高德算路，恢复默认 随州市区 衔接。
+
+#### 3. 时间如何传播 (Time Propagation)
+- 出发时间基准：Day 1 依据 `dayStartTimes[1]`（如 12:00）。
+- 动态推算逻辑：
+  - 当前路段若高德算路就绪：`到达时间 = 出发时间 + segment.time / 60`；
+  - 途经点与站点中途停留：自动计算途经与到站休整时间（默认段间休息 15 分钟）；
+  - 下一路段出发时间 = 上一路段到达时间 + 休整时间；
+  - 若用户将 Day 1 出发时间由 12:00 调整为 10:30，所有后续节点的 `plannedTime` 自动按差值实时前移 90 分钟；
+  - 若任一处于前置链路的路段算路未完成（`routeResults` 尚无数据），时间轴上该节点及后续节点一律显示“等待路线数据”，不采用假静态数字。
+
+#### 4. 设置住宿后哪些 Segment 要重新规划
+- **受影响路段**：严格仅重新计算 `s3`（Day 1 收车段）与 `s4`（Day 2 发车段）。
+- **不受影响路段**：`s1`、`s2`、`s5`、`s6` 保持原样，算路缓存不作废，最大化节省网络请求并规避高德 QPS 限流。
+
+#### 5. 如何避免破坏现有 RouteOption
+- `s6` 拥有 3 种 RouteOption（普通路线、环库风景路线★、风景折中路线）及复杂的差值计算，其起点为丹江口、终点为郧阳，不受广水/随州住宿调整影响。
+- `Segment` 的扩展字段采用可选方式（`customStartCoord`, `customEndCoord`），完全兼容原有 `stops[segment.start]` 索引取点机制。
+- 方案选择状态 `selectedOptions` 与自定义途经点 `customWaypoints` 映射字典保持不变。
+
+#### 6. UI 放置策略
+- **地图为第一视觉中心**：严禁新增第四个永久侧栏。
+- **左侧侧栏 (SidebarLeft)**：
+  - 顶部增加 Day 快速切换：`[全程] [DAY 1] [DAY 2]`，点击直观切换地图高亮与聚焦范围；
+  - Day 标题区集成出发时间调节控件（如 `出发: 12:00 [修改]`）；
+  - 各 Day 下增加可展开的“行程时间轴”，直观展示各段行驶用时与到达时点；
+  - Day 1 尾部明确呈现【今晚住宿】状态卡片，并提供【🏨 住宿方案比较】快捷入口。
+- **右侧设施面板 (FacilityTab / FacilityCard)**：
+  - 酒店/民宿类卡片增加【设为今晚住宿】按钮（与现有【加入停靠点】并存，语义独立）；
+  - 全程搜索模式下，酒店卡片动态显示“若设为今晚住宿：今日 XhXXm · 明日 XhXXm · 预计 XX:XX 到达”。
+- **住宿位置决策抽屉/弹窗 (OvernightDecisionModal)**：
+  - 采用轻量毛玻璃抽屉/弹窗展示 2～3 个候选方案（广水住宿 vs 随州住宿 vs 用户选定住宿）；
+  - 横向对比：今日驾驶（km/h/ETA）、明日剩余（km/h）、两日负荷条形对比、可解释标签（【更均衡】、【今天更轻松】、【明天更轻松】）；
+  - 提供【选用此方案】与【取消住宿恢复默认】按钮。
+- **地图联动**：
+  - 住宿点在地图上渲染醒目的专属床图标 Marker（`🛏`），明确呈现 Day 1 终点与 Day 2 起点；
+  - 点击 `🛏` Marker 打开浮窗，展示酒店信息、到达时间、今日驾驶与明日剩余，并可一键打开对比弹窗。
+
+#### 7. 哪些旧 Phase D 内容已完成因此不再重复
+- [x] POI 分类过滤（全部/酒店/餐饮/油站/充电/厕所/停车）：已在 Phase C 完成。
+- [x] 列表卡片与地图 Marker 的双向聚焦联动（点击平滑移动与打开 InfoWindow）：已在 Phase C 完成。
+- [x] 【加入停靠点】与 Undo 撤销功能：已在 Phase B/C 完成并在 `test-acceptance.mjs` 中持续验证。
+- [x] 走廊搜索并发调度与防抖缓存：已在 Phase C.1 完成。
+
+#### 8. Phase D 专项验收标准
+- **TEST D01**：设置 Day 1 出发时间 12:00，时间轴正确生成，各节点包含时间或明确显示“等待路线数据”。
+- **TEST D02**：将出发时间改为 10:30，所有后续到达时间同步前移 1.5 小时。
+- **TEST D03**：搜索“酒店”，将广水某酒店设为 Day 1 Overnight Stop，验证 Day 1 在酒店结束、Day 2 从酒店开始。
+- **TEST D04**：把住宿从广水改成随州，验证两天路线和时间重新计算，s3 与 s4 更新。
+- **TEST D05**：同时加入 2～3 个住宿候选，打开并展示住宿方案比较界面。
+- **TEST D06**：比较卡正确显示今日驾驶里程/时间、预计到达时间、明日剩余里程/时间，并带有可解释推荐标签。
+- **TEST D07**：取消 Overnight Stop，恢复原始 Day 边界（随州市区衔接）。
+- **TEST D08**：原有功能全面回归：Phase A/B/C/C.1 测试 100% PASS。
 
 ### Phase E：沿途视频模块与空间绑定
 - [ ] 录入湖北自驾/丹江口环库真实视频参考（B站、抖音、小红书）；
@@ -540,6 +622,7 @@ export interface VideoReference {
 | **Phase A** | 1. 桌面端三栏布局与参考图视觉语言统一，比例协调；<br>2. 顶栏搜索框具备“全程/当前路段”切换；<br>3. 右侧“沿途视频/沿途设施”共享同一 Tab 空间无缝切换；<br>4. 控制台无任何报错。 |
 | **Phase B** | 1. 高德底图正常渲染，无需手动配置 Key；<br>2. 真实绘制出黄冈至郧阳 6 段真实避高速路线；<br>3. 点击不同 Segment 地图平滑平移聚焦并高亮；<br>4. 切换 RouteOption，路线与里程/耗时数据真实联动。 |
 | **Phase C** | 1. 顶部输入“酒店”或“充电站”，能在地图上沿实际路线走廊绘制出 POI 标记；<br>2. 切换“当前路段”与“全程”能正确缩放搜索范围；<br>3. POI 卡片清晰标注“距路线 X km”。 |
-| **Phase D** | 1. 点击 POI 卡片可精准联动地图居中并打开气泡；<br>2. 点击【加入停靠点】，该点成功变为途经点并重新调用高德算路；<br>3. 里程与耗时发生真实变化，且支持撤销。 |
+| **Phase C.1** | 1. 连续搜索防丢弃与旧任务清理；<br>2. 重复搜索缓存命中；<br>3. 全程并发受控 <= 2；<br>4. 结果 Top 20 截取平滑展开；<br>5. 绕行文案合规为“预计绕行约 +X km”。 |
+| **Phase D** | 1. Day 1/Day 2 出发时间支持用户调整并驱动时间轴全线动态前移/后移；<br>2. 酒店设施支持【设为今晚住宿】，重定义 Day 1 终点与 Day 2 起点；<br>3. 支持 2～3 个住宿候选方案横向比较（今日驾驶/预计到达/明日剩余/节奏平衡）；<br>4. 地图醒目呈现 🛏 住宿 Marker 并支持气泡联动；<br>5. 支持取消住宿并恢复原始 Day 边界；<br>6. 历史回归测试全部通过。 |
 | **Phase E** | 1. 视频按路线真实节点分布，点击视频卡片地图自动平移至对应风景点；<br>2. B站等可用视频可在内嵌播放器中直接播放，不可内嵌平台有明确提示与外链。 |
 | **Phase F** | 1. 点击【开始导航】正确组装高德参数；<br>2. 移动端宽度（375px~768px）自适应无横向滚动条；<br>3. 控制台干净，无未处理异常。 |

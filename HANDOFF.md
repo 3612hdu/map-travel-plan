@@ -1,7 +1,7 @@
 # 可交互自驾路线规划器 V2 —— 会话交接文档 (HANDOFF.md)
 
 > **最后更新**：2026-09-26  
-> **基线状态**：Phase A / Phase B / Phase C / Phase C.1 全数交付完成，所有自动化测试 100% 通过（基准 TEST 01～14 + Phase C 走廊验证 + Phase C.1 搜索可靠性专项验证）。  
+> **基线状态**：Phase A / Phase B / Phase C / Phase C.1 / Phase D 全数交付完成，所有自动化测试 100% 通过（基准 TEST 01～14 + Phase C 走廊验证 + Phase C.1 搜索可靠性专项验证 + Phase D 时间轴与住宿决策 8 项专项验证）。  
 > **使用说明**：后续所有开发会话优先读取本文件作为真实上下文基线，严禁推测或依赖历史记忆。
 
 ---
@@ -29,6 +29,11 @@
    - **走廊搜索请求治理（Global Queue）**：设计并实现全局并发请求调度队列，严格控制全局网络并发 `MAX_SEARCH_CONCURRENCY = 2` 与任务间隔延迟 `TASK_SPACING_MS = 40ms`，彻底根治高德 API `net::ERR_CONNECTION_CLOSED` 限流；引入代际令牌（`activeSearchGeneration`），在用户连续快速切换搜索词时，立即主动清理旧代际队列待办任务并丢弃其结果，避免覆盖最新搜索；引入 5 分钟 TTL 内存缓存与进行中请求去重。
    - **综合相关度排序与呈现精细化**：构建多维相关度打分（`relevanceScore`：垂距 0~50 分 + 官方评分 0~30 分 + 激活路段加权 0/15 分 + 分类匹配 0/5 分）；默认采用 Top 20 截取，配合【查看全部结果 (共 N 处)】/【收起至前 20 处】平滑展开；全程模式下按 Day 与 Segment 分组呈现，赋予清晰自驾上下文。
    - **自动化专项回归套件**：编写 `test-phase-c1.mjs`，包含连续搜索丢弃、缓存复用、并发上限、Top 20 截取与展开、文案语义合规五大专项断言。
+6. **Phase D 行程时间轴与住宿决策系统**：
+   - **出发时间动态推演与级联流转**：支持 Day 1 / Day 2 独立配置出发时间（默认 12:00 与 09:00），基于高德各路段真实算路时长与停留补给预留时间动态级联推算后续所有节点的 ETA；出发时间或路段重算时全线毫秒级自动刷新；计算过程中严格展示“等待路线数据”，避免假数据误导。
+   - **酒店升级为“今晚住宿”（Overnight Stop）**：将酒店从普通沿途 POI 升格为重构 Day 1 终点与 Day 2 起点的核心枢纽，自动动态切分与重算 s3（大悟→住宿地）与 s4（住宿地→襄阳）两段路线，实时反映两日驾驶负担变化。
+   - **多候选地决策对比系统（Overnight Decision Comparison）**：在左侧面板与设施卡片提供【对比】与【方案比较】入口，支持 2~3 个候选方案（如广水应山宾馆 vs 随州齐星湖会馆）并列横向对比；清晰呈现今日驾驶/预计抵达/明日剩余/两日行车节奏比例条，并给出客观可解释规则标签（“更均衡”、“今天更轻松”、“明天更轻松”）。
+   - **地图联动与日程聚焦**：左侧提供 `[全程] [DAY 1] [DAY 2]` 快速切换视角，地图自动高亮当前日程路线、弱化其他日程并自适应视野；在住宿点渲染专属 `🛏` 标牌 Marker 与预计到达时间标签，支持一键在弹窗中取消住宿并恢复默认边界规划。
 
 ---
 
@@ -37,6 +42,15 @@
 - **构建命令**：`npm run build` -> `tsc && vite build`，**0 报错，0 告警**，产物体积 ~316 kB。
 - **本地服务**：`http://127.0.0.1:5173/` 正常运行。
 - **自动化测试通过率**：
+  - `node test-phase-d.mjs`：**8/8 PASS (100%)**
+    - TEST D01: 设置 Day 1 出发时间 12:00，时间轴正确生成（PASS）。
+    - TEST D02: 出发时间由 12:00 改为 10:30，全线时间同步前移 90 分钟（PASS）。
+    - TEST D03: 设广水某酒店为 Day 1 Overnight Stop，重构 Day 1 终点与 Day 2 起点（PASS）。
+    - TEST D04: 住宿地从广水切换为随州，两日路线与边界即时重算（PASS）。
+    - TEST D05: 打开住宿方案比较抽屉/弹窗，候选卡数量 >= 2（PASS）。
+    - TEST D06: 比较卡完整呈现今日/明日/预计到达与可解释推荐标签（PASS）。
+    - TEST D07: 取消 Overnight Stop，完全恢复原始 Day 边界与默认规划（PASS）。
+    - TEST D08: 原有功能全面回归（s6 丹江口 3 方案、设施/视频完整保留）（PASS）。
   - `node test-phase-c1.mjs`：**5/5 PASS (100%)**
     - 测试 A: 连续搜索拦截丢弃旧代际，卡片展示最新结果（PASS）。
     - 测试 B: 重复相同搜索命中缓存，`cacheHits` 自增无重复网络请求（PASS）。
@@ -58,6 +72,8 @@
 | **走廊搜索 QPS 溢出与旧请求冲突** | **已修复 (Phase C.1)** | 引入全局受控队列（`MAX_SEARCH_CONCURRENCY = 2`, `TASK_SPACING_MS = 40ms`）、代际令牌（`Generation Token`）与旧任务主动清理，杜绝并发轰炸与旧请求覆盖。 |
 | **绕行语义混淆与批量爆炸** | **已修复 (Phase C.1)** | 几何垂距统一纠正为“预计绕行约 +X km”；预留真实测算接口按需触发，避免全量批量 Driving 导致 API 额度耗尽。 |
 | **搜索列表一次性平铺 100+ 条卡片** | **已修复 (Phase C.1)** | 引入综合相关度排序，默认折叠截取 Top 20，并支持一键展开/收起；全程模式按 Day/Segment 层次结构分组。 |
+| **设施卡片首选按钮选择器冲突** | **已修复 (Phase D)** | 基准测试 TEST 11 选择器匹配卡片内第一个按钮，若将【设为今晚住宿】前置会导致停靠点测试点击错误；保持【+ 加入停靠点】为首按钮，住宿与对比按钮后置，确保双向兼容。 |
+| **日程模式过滤导致 DOM 节点减少** | **已修复 (Phase D)** | 早期在 Day 2 模式下仅渲染 Day 2 的 Segment 卡片，导致 TEST 04 断言 `segmentCards.length === 6` 失败；调整为左侧列表始终全量保全 6 张卡片，Day 模式着重作用于地图高亮聚焦与时间轴切面。 |
 
 ---
 
@@ -94,8 +110,11 @@
 ## 5. 当前核心数据模型
 
 - **`Trip` / `Segment` / `RouteOption`** (`src/types/trip.ts`)：
-  - `Segment`: `id`, `day`, `title`, `start`, `end`, `chosen`, `options`
+  - `Segment`: `id`, `day`, `title`, `start`, `end`, `chosen`, `options`, `customStartCoord`, `customStartName`, `customEndCoord`, `customEndName`
   - `RouteOption`: `id`, `name`, `tagTitle`, `via`, `comparisonNote`, `highlights`
+- **`OvernightStop` & `TimelineItem`** (`src/types/trip.ts`)：
+  - `OvernightStop`: `id`, `poiId`, `name`, `coord`, `address`, `city`, `targetCityOrArea`, `day`, `sourceSegmentId`, `rating`, `priceLevel`, `todayDrivingKm`, `todayDrivingDurationSec`, `todayEta`, `tomorrowRemainingKm`, `tomorrowRemainingDurationSec`, `decisionTag` ('more_balanced' | 'today_relaxed' | 'tomorrow_relaxed'), `decisionLabel`, `decisionReason`
+  - `TimelineItem`: `id`, `day`, `type` ('departure' | 'waypoint' | 'poi' | 'destination' | 'rest' | 'overnight'), `title`, `subtitle`, `plannedTime`, `isPendingRoute`, `linkedSegmentId`, `isOvernight`
 - **`RoutePoi`** (`src/types/poi.ts`)：
   - `id`, `name`, `category` (hotel | food | gas | ev | toilet | parking), `coord`, `distanceToRoute`, `estimatedDetourKm`, `sourceSegmentId`, `sourceDay`, `relevanceScore`
 - **`RoutePreference`** (`src/types/preference.ts`)：
@@ -105,15 +124,14 @@
 
 ---
 
-## 6. 下一阶段入口 (Phase D)
+## 6. 下一阶段展望 (Phase E / 后续演进)
 
-- **核心主题**：**沿途设施深度交互与加入停靠点**（在 Phase C.1 高质量搜索数据底座之上推进）。
-- **原计划规划的目标与待解决问题**：
-  1. 设施卡片【+ 加入停靠点】真操作深度化：将 POI 动态插入当前 Segment 的 `customWaypoints` 并触发真实高德 Driving 算路；
-  2. 路线即时重算与增量更新：路线 Polyline、里程、预计时间、通行费实时联动刷新，顶部统计即时变化；
-  3. 停靠点管理与撤销（Undo）：支持已加入停靠点的排序、移除与恢复；
-  4. 地图停靠点序号 Marker 与弹窗卡片交互联动；
-  5. 道路经过点核对与提示（通过设施所在路段更新 `steps[].road`）。
+- **核心主题**：**导出行程路书与高德 App 真实导航外跳联动**。
+- **规划方向**：
+  1. **高德 App / Universal Link 真实导航外跳**：将用户在 Web 端规划调整好的终态路线（含选定住宿点、选定风景分支 s6、添加的途经停靠点）直接导出生成高德高拟合 URI 唤起参数；
+  2. **自驾路书 (PDF / 长图) 导出打印**：基于当前动态时间轴、住宿决策信息、沿途关键补给与风景打卡点，生成便携离线路书；
+  3. **复杂多日拓展支持 (Day 3+)**：将当前的 2 日住宿决策算法推广至多日长途穿越场景；
+  4. **天气与日出日落图层联动**：在时间轴关键打卡点标注预计到达时的光照与天气情况（如丹江口北岸日落时间推算）。
 
 ---
 
@@ -123,3 +141,4 @@
 2. **Trip 为容器，Segment 为核心，Route Option 为决策单元**：分段独立规划、独立高亮、独立搜索。
 3. **共享面板 Tab 互斥切换**：沿途视频与沿途设施必须继续共享右侧同一个面板，通过顶部 Tab 切换，严禁拆成两个堆叠面板。
 4. **路线走廊搜索真实沿路**：保持“全程”与“当前路段”双作用域，严控全局并发 <= 2，严禁绕过全局调度队列发起并发请求。
+5. **严禁黑盒伪造行程数据**：时间轴推算严格依据真实算路与停靠预留耗时；在路线未返回时展示“等待路线数据”，绝不编造静态假数字；住宿推荐原因必须具备严格可解释的规则溯源。

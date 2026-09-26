@@ -1,0 +1,168 @@
+import { RoutePoi } from '../types/poi';
+
+export const initialFacilities: RoutePoi[] = [
+  // 酒店/民宿
+  {
+    id: 'hotel-1',
+    name: '丹江口半岛假日酒店',
+    category: 'hotel',
+    categoryLabel: '酒店/民宿',
+    coord: [111.5200, 32.5510],
+    address: '丹江口市沿江路半岛生态区',
+    distanceToRoute: 2.8,
+    detourDistance: 1.2,
+    rating: 4.6,
+    reviewCount: 320,
+    tags: ['免费停车', '近水库', '位置优越'],
+    priceLevel: '¥268起',
+    status: '舒适型 · 临江',
+    sourceSegmentId: 's6'
+  },
+  {
+    id: 'hotel-2',
+    name: '习家店山水民宿',
+    category: 'hotel',
+    categoryLabel: '酒店/民宿',
+    coord: [111.1920, 32.7420],
+    address: '丹江口市习家店镇水库北岸环库路',
+    distanceToRoute: 1.8,
+    detourDistance: 0.8,
+    rating: 4.8,
+    reviewCount: 126,
+    tags: ['临水视野', '免费停车', '适合拍照'],
+    priceLevel: '¥198起',
+    status: '民宿 · 湖景露台',
+    sourceSegmentId: 's6'
+  },
+  {
+    id: 'hotel-3',
+    name: '安阳湖景酒店',
+    category: 'hotel',
+    categoryLabel: '酒店/民宿',
+    coord: [111.0250, 32.8410],
+    address: '十堰市郧阳区安阳镇汉江绿谷旁',
+    distanceToRoute: 3.5,
+    detourDistance: 1.4,
+    rating: 4.5,
+    reviewCount: 203,
+    tags: ['湖景房', '免费停车', '早餐丰盛'],
+    priceLevel: '¥220起',
+    status: '舒适型',
+    sourceSegmentId: 's6'
+  },
+  {
+    id: 'hotel-4',
+    name: '郧阳滨江大酒店',
+    category: 'hotel',
+    categoryLabel: '酒店/民宿',
+    coord: [110.8210, 32.8310],
+    address: '十堰市郧阳区汉江大道',
+    distanceToRoute: 1.2,
+    detourDistance: 0.5,
+    rating: 4.4,
+    reviewCount: 287,
+    tags: ['江景房', '免费停车', '餐饮方便'],
+    priceLevel: '¥310起',
+    status: '高档型',
+    sourceSegmentId: 's6'
+  },
+  // 加油站
+  {
+    id: 'gas-1',
+    name: '凉水河镇加油站',
+    category: 'gas',
+    categoryLabel: '加油站',
+    coord: [111.4680, 32.6480],
+    address: '中国石化 · 凉水河镇S337省道旁',
+    distanceToRoute: 2.3,
+    detourDistance: 0.4,
+    tags: ['92#', '95#', '柴油'],
+    status: '营业中',
+    sourceSegmentId: 's6'
+  },
+  {
+    id: 'gas-2',
+    name: '安阳镇加油站',
+    category: 'gas',
+    categoryLabel: '加油站',
+    coord: [111.0110, 32.8420],
+    address: '中国石化 · 安阳镇十字街口',
+    distanceToRoute: 1.5,
+    detourDistance: 0.3,
+    tags: ['92#', '95#', '便利店'],
+    status: '营业中',
+    sourceSegmentId: 's6'
+  },
+  // 充电站
+  {
+    id: 'ev-1',
+    name: '习家店充电站',
+    category: 'ev',
+    categoryLabel: '充电站',
+    coord: [111.1850, 32.7460],
+    address: '国家电网 · 习家店镇迎宾大道供电所旁',
+    distanceToRoute: 1.8,
+    detourDistance: 0.2,
+    tags: ['快充 120kW', '慢充 7kW', '24小时开放'],
+    status: '快充 4 / 慢充 2 · 空闲 3/4',
+    sourceSegmentId: 's6'
+  },
+  {
+    id: 'ev-2',
+    name: '凉水河镇便民充电桩',
+    category: 'ev',
+    categoryLabel: '充电站',
+    coord: [111.4700, 32.6440],
+    address: '特来电 · 凉水河镇客运站旁',
+    distanceToRoute: 2.1,
+    detourDistance: 0.5,
+    tags: ['快充 60kW'],
+    status: '空闲 2/2',
+    sourceSegmentId: 's6'
+  },
+  // 餐饮
+  {
+    id: 'food-1',
+    name: '习家店特色餐馆',
+    category: 'food',
+    categoryLabel: '餐饮',
+    coord: [111.1840, 32.7490],
+    address: '习家店镇农家乐一条街',
+    distanceToRoute: 1.6,
+    detourDistance: 0.3,
+    rating: 4.6,
+    reviewCount: 95,
+    tags: ['本地菜', '水库翘嘴白', '散养土鸡'],
+    priceLevel: '人均 ¥55',
+    status: '营业中 10:30-20:30',
+    sourceSegmentId: 's6'
+  },
+  // 厕所
+  {
+    id: 'toilet-1',
+    name: '习家店镇公共厕所',
+    category: 'toilet',
+    categoryLabel: '公共厕所',
+    coord: [111.1820, 32.7470],
+    address: '习家店镇游客服务中心旁',
+    distanceToRoute: 1.7,
+    detourDistance: 0.1,
+    tags: ['免费', '无障碍通道', '卫生清洁'],
+    status: '全天开放',
+    sourceSegmentId: 's6'
+  },
+  // 停车场
+  {
+    id: 'parking-1',
+    name: '安阳镇观景停车点',
+    category: 'parking',
+    categoryLabel: '停车场',
+    coord: [111.0200, 32.8460],
+    address: '安阳镇 · 汉江观景台路侧安全港湾',
+    distanceToRoute: 0.5,
+    detourDistance: 0.0,
+    tags: ['免费停车', '视野开阔', '适合拍照'],
+    status: '车位 15 个',
+    sourceSegmentId: 's6'
+  }
+];

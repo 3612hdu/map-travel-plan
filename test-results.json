@@ -1,0 +1,50 @@
+{
+  "TEST 01": {
+    "status": "PASS",
+    "evidence": "标题: \"可交互自驾路线规划器v2\", 地图容器正常存在, 控制台错误数: 0"
+  },
+  "TEST 02": {
+    "status": "PASS",
+    "evidence": "高德 JS API 全局对象挂载: true, 渲染 Canvas 数量: 1"
+  },
+  "TEST 05": {
+    "status": "PASS",
+    "evidence": "3张路线方案渲染完成: [{\"title\":\"普通路线\",\"metrics\":\"105 km · 2h21m · ¥0\",\"isChosen\":false},{\"title\":\"环库风景路线★ 推荐\",\"metrics\":\"136 km · 3h08m · ¥0+31 km · +47 min\",\"isChosen\":true},{\"title\":\"风景折中路线\",\"metrics\":\"121 km · 2h43m · ¥0+16 km · +22 min\",\"isChosen\":false}]"
+  },
+  "TEST 03": {
+    "status": "PASS",
+    "evidence": "统计指标展示: [{\"label\":\"已规划 (3/6段)\",\"val\":\"319 km\"},{\"label\":\"预计驾驶\",\"val\":\"5h31m\"},{\"label\":\"预估收费\",\"val\":\"¥86\"},{\"label\":\"风景路段\",\"val\":\"约 136 km\"}]"
+  },
+  "TEST 04": {
+    "status": "PASS",
+    "evidence": "分段切换响应: 麻城 → 大悟 -> 随州 → 襄阳 -> 丹江口 → 郧阳推荐风景路线"
+  },
+  "TEST 07": {
+    "status": "PASS",
+    "evidence": "路况开关切换: 已开启 -> 已关闭"
+  },
+  "TEST 12 & 13": {
+    "status": "PASS",
+    "evidence": "成功切换到沿途视频 Tab，多平台过滤运行正常，主视频大卡与次级网格正常渲染"
+  },
+  "TEST 08": {
+    "status": "PASS",
+    "evidence": "当前路段检索设施数: 3, 全程走廊检索设施数: 18"
+  },
+  "TEST 10": {
+    "status": "PASS",
+    "evidence": "点击设施卡片后地图 InfoWindow 激活状态: true"
+  },
+  "TEST 11": {
+    "status": "PASS",
+    "evidence": "停靠点总数演变: 0 -> 1 -> 0, 按钮反馈: \"已加入停靠点\""
+  },
+  "TEST 09": {
+    "status": "PASS",
+    "evidence": "酒店、餐饮、油站、充电、厕所、停车分类切换流畅，走廊搜索按类别正确过滤"
+  },
+  "TEST 14": {
+    "status": "PASS",
+    "evidence": "1440x900 下三栏保持网格比例正常显示: true"
+  }
+}

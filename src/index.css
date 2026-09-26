@@ -1412,7 +1412,11 @@ input {
   .app-workspace {
     display: flex !important;
     flex-direction: column !important;
-    height: calc(100vh - 52px - 56px) !important;
+    height: auto !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    box-sizing: border-box;
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
     position: relative !important;
     overflow: hidden !important;
     grid-template-columns: none !important;
@@ -1726,4 +1730,3 @@ input {
     overflow-y: auto;
   }
 }
-

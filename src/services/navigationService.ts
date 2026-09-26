@@ -1,35 +1,47 @@
 import { Stop } from '../types/trip';
-import { RoutePreference, DEFAULT_PREFERENCE, mapPreferenceToUriPolicy } from '../types/preference';
+import { RoutePreference, DEFAULT_PREFERENCE, mapPreferenceToUriPolicy, mapPreferenceToMobileAppPolicy } from '../types/preference';
 import { NavigationLeg } from '../types/navigationPlan';
 
-/**
- * 生成高德导航 URI 链接字符串 (供桌面端 Web 实路导航与测试断言)
- */
+export function detectMobileMapPlatform(): 'ios' | 'android' | 'web' {
+  if (typeof navigator === 'undefined') return 'web';
+  const userAgent = navigator.userAgent;
+  if (/iPhone|iPad|iPod/i.test(userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return 'ios';
+  if (/Android|HarmonyOS/i.test(userAgent)) return 'android';
+  return 'web';
+}
+
+/** 生成已填入起终点和全部途经点的高德路线规划链接。 */
 export function generateAmapNavigationUrl(
   targetStop: Stop,
   waypoints: Stop[] = [],
   preference: RoutePreference = DEFAULT_PREFERENCE,
   startStop?: Stop
 ): string {
-  const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const platform = detectMobileMapPlatform();
   const uriPolicy = mapPreferenceToUriPolicy(preference);
 
-  if (isMobile) {
-    const appUrl = new URL('amapuri://route/plan/');
-    appUrl.searchParams.set('sourceApplication', 'RoutePlannerV2');
+  if (platform !== 'web') {
+    const appUrl = new URL(platform === 'ios' ? 'iosamap://path' : 'amapuri://route/plan/');
+    appUrl.searchParams.set('sourceApplication', 'MapTravelPlan');
     if (startStop) {
       appUrl.searchParams.set('slat', String(startStop.coord[1]));
       appUrl.searchParams.set('slon', String(startStop.coord[0]));
       appUrl.searchParams.set('sname', startStop.name);
+      if (startStop.poi) appUrl.searchParams.set('sid', startStop.poi);
     }
     appUrl.searchParams.set('dlat', String(targetStop.coord[1]));
     appUrl.searchParams.set('dlon', String(targetStop.coord[0]));
     appUrl.searchParams.set('dname', targetStop.name);
+    if (targetStop.poi) appUrl.searchParams.set('did', targetStop.poi);
     appUrl.searchParams.set('dev', '0');
     appUrl.searchParams.set('t', '0'); // 驾车
+    appUrl.searchParams.set('m', mapPreferenceToMobileAppPolicy(preference));
     if (waypoints.length > 0) {
-      const viaParam = waypoints.map((w) => `${w.coord.join(',')},${w.name}`).join('|');
-      appUrl.searchParams.set('via', viaParam);
+      appUrl.searchParams.set('vian', String(waypoints.length));
+      appUrl.searchParams.set('vialons', waypoints.map((stop) => stop.coord[0]).join('|'));
+      appUrl.searchParams.set('vialats', waypoints.map((stop) => stop.coord[1]).join('|'));
+      appUrl.searchParams.set('vianames', waypoints.map((stop) => stop.name.replaceAll('|', ' ')).join('|'));
     }
     return appUrl.href;
   }
@@ -47,7 +59,7 @@ export function generateAmapNavigationUrl(
   webUrl.searchParams.set('mode', 'car');
   webUrl.searchParams.set('policy', uriPolicy);
   webUrl.searchParams.set('src', 'route-planner-v2');
-  webUrl.searchParams.set('callnative', '1');
+  webUrl.searchParams.set('callnative', '0');
   return webUrl.href;
 }
 
@@ -61,7 +73,7 @@ export function startAmapNavigation(
   startStop?: Stop
 ) {
   const url = generateAmapNavigationUrl(targetStop, waypoints, preference, startStop);
-  const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const isMobile = detectMobileMapPlatform() !== 'web';
 
   if (isMobile) {
     window.location.href = url;

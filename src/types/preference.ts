@@ -118,3 +118,15 @@ export function mapPreferenceToUriPolicy(pref: RoutePreference): string {
   }
   return '0'; // 默认
 }
+
+/** 高德地图 App 路线规划 URI 的 m 参数。 */
+export function mapPreferenceToMobileAppPolicy(pref: RoutePreference): string {
+  if (pref.avoidHighway && pref.avoidToll && pref.avoidCongestion) return '8';
+  if (pref.avoidHighway && pref.avoidToll) return '5';
+  if (pref.avoidHighway && pref.avoidCongestion) return '6';
+  if (pref.avoidToll && pref.avoidCongestion) return '7';
+  if (pref.avoidHighway) return '3';
+  if (pref.avoidToll) return '1';
+  if (pref.avoidCongestion) return '4';
+  return '0';
+}

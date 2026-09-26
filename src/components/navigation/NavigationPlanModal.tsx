@@ -320,7 +320,7 @@ export const NavigationPlanModal: React.FC<NavigationPlanModalProps> = ({
                           }}
                         >
                           <Navigation size={12} />
-                          <span>导航此段</span>
+                          <span>在高德打开</span>
                         </button>
                       </div>
                     </div>
@@ -354,7 +354,7 @@ export const NavigationPlanModal: React.FC<NavigationPlanModalProps> = ({
                   }}
                 >
                   <Navigation size={15} />
-                  <span>按顺序开始接力导航 (从第 1 段出发)</span>
+                  <span>在高德打开第 1 段路线</span>
                 </button>
               </div>
             </div>
@@ -466,8 +466,11 @@ export const NavigationPlanModal: React.FC<NavigationPlanModalProps> = ({
                       }}
                     >
                       <Navigation size={16} />
-                      <span>在高德开始第 {currentLegIndex + 1} 段导航</span>
+                      <span>在高德打开第 {currentLegIndex + 1} 段路线</span>
                     </button>
+                  </div>
+                  <div style={{ marginTop: '8px', fontSize: '11.5px', color: '#475569' }}>
+                    起点、终点与途经点已填好；在高德确认路线后点击“开始导航”。
                   </div>
                 </div>
 

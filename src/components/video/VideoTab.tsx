@@ -20,12 +20,16 @@ export const VideoTab: React.FC = () => {
   }, [activeSegmentId, optionId, activeHighlightId]);
 
   // 按路段、所选方案、高亮亮点范围过滤
-  const scoped = (videos as RouteMedia[]).filter(
+  const routeMedia = (videos as RouteMedia[]).filter(
     (item) =>
+      item.verificationStatus === 'verified' &&
       item.segmentId === activeSegmentId &&
-      (!item.routeOptionIds || (optionId && item.routeOptionIds.includes(optionId))) &&
-      (!activeHighlightId || item.highlightId === activeHighlightId)
+      (!item.routeOptionIds || (optionId && item.routeOptionIds.includes(optionId)))
   );
+  const highlightMedia = activeHighlightId
+    ? routeMedia.filter((item) => item.highlightId === activeHighlightId)
+    : [];
+  const scoped = highlightMedia.length > 0 ? highlightMedia : routeMedia;
 
   const filteredVideos = scoped.filter((item) => {
     const platformMatch = selectedPlatform === 'all' || item.platform === selectedPlatform;
@@ -100,7 +104,9 @@ export const VideoTab: React.FC = () => {
 
       <div className="video-content-wrapper">
         <div className="video-notice-banner">
-          仅展示路线沿途核验实景照片与真实自驾影像；未经证实地点绝不虚标。
+          {activeHighlightId && highlightMedia.length === 0
+            ? '当前亮点暂无专属影像，先展示本路段已核验素材。'
+            : '仅展示路线沿途核验实景照片与真实自驾影像；未经证实地点绝不虚标。'}
         </div>
 
         {/* 诚实空状态提示 (杜绝假照片/无关视频) */}

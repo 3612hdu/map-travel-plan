@@ -12,6 +12,12 @@ export const VideoModal: React.FC<VideoModalProps> = ({ video, onClose }) => {
 
   const isPhoto = video.type === 'photo';
   const available = video.verificationStatus === 'verified' && !!video.sourceUrl;
+  const bvid = video.type === 'video' && video.platform === 'bilibili'
+    ? video.sourceUrl?.match(/\/video\/(BV[0-9A-Za-z]+)/)?.[1]
+    : undefined;
+  const embedUrl = bvid
+    ? `https://player.bilibili.com/player.html?bvid=${bvid}&autoplay=0&danmaku=0`
+    : undefined;
 
   return (
     <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label={video.title}>
@@ -67,7 +73,16 @@ export const VideoModal: React.FC<VideoModalProps> = ({ video, onClose }) => {
 
         {/* 弹窗内容 */}
         <div className="modal-body" style={{ padding: '20px', textAlign: 'center' }}>
-          {video.cover ? (
+          {embedUrl ? (
+            <iframe
+              src={embedUrl}
+              title={`${video.title} · B站播放器`}
+              allow="autoplay; fullscreen; picture-in-picture"
+              allowFullScreen
+              loading="lazy"
+              style={{ width: '100%', aspectRatio: '16 / 9', border: 0, borderRadius: '12px', marginBottom: '14px' }}
+            />
+          ) : video.cover ? (
             <img
               src={video.cover}
               alt={video.title}

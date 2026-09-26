@@ -30,6 +30,7 @@ interface TripStore {
   selectedCategory: FacilityCategory;
   facilities: RoutePoi[];
   isSearching: boolean;
+  showFacilitiesOnMap: boolean;
 
   // 视频列表与当前播放
   videos: VideoReference[];
@@ -55,6 +56,7 @@ interface TripStore {
   setSearchScope: (scope: 'trip' | 'segment') => void;
   setSelectedCategory: (category: FacilityCategory) => void;
   setFacilities: (list: RoutePoi[]) => void;
+  setShowFacilitiesOnMap: (show: boolean) => void;
 
   focusPoi: (id: string | null) => void;
   hoverPoi: (id: string | null) => void;
@@ -91,6 +93,7 @@ export const useTripStore = create<TripStore>((set, get) => {
     selectedCategory: 'all',
     facilities: initialFacilities,
     isSearching: false,
+    showFacilitiesOnMap: true,
 
     videos: initialVideos,
     activeVideo: null,
@@ -162,6 +165,7 @@ export const useTripStore = create<TripStore>((set, get) => {
     setSearchScope: (scope) => set({ searchScope: scope }),
     setSelectedCategory: (category) => set({ selectedCategory: category }),
     setFacilities: (facilities) => set({ facilities }),
+    setShowFacilitiesOnMap: (show) => set({ showFacilitiesOnMap: show }),
 
     focusPoi: (id) => set({ selectedPoiId: id }),
     hoverPoi: (id) => set({ hoveredPoiId: id }),

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Search, ChevronDown, Check } from 'lucide-react';
+import { Search, ChevronDown, Check, X, Loader2 } from 'lucide-react';
 import { useTripStore } from '../../store/useTripStore';
+import { QUICK_SEARCH_CHIPS } from '../../config/poiTypes';
 
 export const CorridorSearchBox: React.FC = () => {
   const {
@@ -18,7 +19,17 @@ export const CorridorSearchBox: React.FC = () => {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSearchQuery(inputValue);
-    // 触发搜索时，根据需求必须自动切到“沿途设施”Tab展示结果
+    setActiveContentTab('facilities');
+  };
+
+  const handleClear = () => {
+    setInputValue('');
+    setSearchQuery('');
+  };
+
+  const handleChipClick = (query: string) => {
+    setInputValue(query);
+    setSearchQuery(query);
     setActiveContentTab('facilities');
   };
 
@@ -31,23 +42,81 @@ export const CorridorSearchBox: React.FC = () => {
   return (
     <div style={{ position: 'relative', width: '100%', maxWidth: '560px' }}>
       <form onSubmit={handleSearchSubmit} className="search-corridor-wrapper">
-        <Search size={16} color="#94a3b8" style={{ flexShrink: 0 }} />
+        {isSearching ? (
+          <Loader2 size={16} color="#1875ff" className="animate-spin" style={{ flexShrink: 0 }} />
+        ) : (
+          <Search size={16} color="#94a3b8" style={{ flexShrink: 0 }} />
+        )}
         <input
           type="text"
           className="search-input"
-          placeholder="搜索沿途的酒店、餐厅、加油站、充电站、景点、厕所等..."
+          placeholder="搜索沿途的酒店、民宿、餐厅、加油站、充电站、公厕..."
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
         />
+        {inputValue && (
+          <button
+            type="button"
+            onClick={handleClear}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '2px',
+              color: '#94a3b8',
+              display: 'flex',
+              alignItems: 'center'
+            }}
+            title="清空搜索词"
+          >
+            <X size={14} />
+          </button>
+        )}
         <button
           type="button"
           className="scope-selector-btn"
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
         >
-          <span>{searchScope === 'trip' ? '全程' : '当前路段'}</span>
+          <span>{searchScope === 'trip' ? '全程走廊' : '当前路段'}</span>
           <ChevronDown size={14} color="#64748b" />
         </button>
       </form>
+
+      {/* 快捷推荐词 */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          marginTop: '4px',
+          paddingLeft: '4px',
+          overflowX: 'auto',
+          scrollbarWidth: 'none'
+        }}
+      >
+        <span style={{ fontSize: '10.5px', color: '#94a3b8', flexShrink: 0 }}>顺路推荐:</span>
+        {QUICK_SEARCH_CHIPS.map((chip) => (
+          <button
+            key={chip.label}
+            type="button"
+            onClick={() => handleChipClick(chip.query)}
+            style={{
+              background: searchQuery === chip.query ? '#eff6ff' : '#f8fafc',
+              border: `1px solid ${searchQuery === chip.query ? '#bfdbfe' : '#e2e8f0'}`,
+              color: searchQuery === chip.query ? '#1875ff' : '#475569',
+              fontSize: '10.5px',
+              fontWeight: 600,
+              padding: '1px 7px',
+              borderRadius: '99px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            {chip.label}
+          </button>
+        ))}
+      </div>
 
       {/* 搜索作用域下拉菜单 */}
       {isDropdownOpen && (

@@ -30,7 +30,12 @@ export function formatDistance(meters: number): string {
 }
 
 // 沿折线等距抽样锚点（用于走廊搜索 PlaceSearch）
-export function sampleCenters(path: [number, number][], intervalMeters = 25000): [number, number][] {
+// intervalMeters: 默认 16000m (配合 PlaceSearch 8000m 半径形成连续重叠走廊)
+export function sampleCenters(
+  path: [number, number][],
+  intervalMeters = 16000,
+  maxSamples = 36
+): [number, number][] {
   if (!path || path.length < 2) return path || [];
 
   const distances: number[] = [0];
@@ -41,7 +46,8 @@ export function sampleCenters(path: [number, number][], intervalMeters = 25000):
   const total = distances[distances.length - 1];
   if (total <= 0) return [path[0]];
 
-  const count = Math.min(12, Math.max(3, Math.ceil(total / intervalMeters) + 1));
+  // 保证长路段与全程无截断覆盖，采样点上限扩展至 maxSamples (36)
+  const count = Math.min(maxSamples, Math.max(3, Math.ceil(total / intervalMeters) + 1));
   const samples: [number, number][] = [];
 
   for (let i = 0; i < count; i++) {
@@ -90,12 +96,53 @@ export function pointToPolylineDistanceKm(
   if (polyline.length === 1) return geoDistance(p, polyline[0]) / 1000;
 
   let minDistanceMeters = Infinity;
+  // 经纬度外包框快速粗筛 (约 0.15度 ≈ 15km)
+  const roughThresholdDeg = 0.15;
+
   for (let i = 0; i < polyline.length - 1; i++) {
-    const d = pointToSegmentDistance(p, polyline[i], polyline[i + 1]);
+    const a = polyline[i];
+    const b = polyline[i + 1];
+
+    const minLng = Math.min(a[0], b[0]) - roughThresholdDeg;
+    const maxLng = Math.max(a[0], b[0]) + roughThresholdDeg;
+    const minLat = Math.min(a[1], b[1]) - roughThresholdDeg;
+    const maxLat = Math.max(a[1], b[1]) + roughThresholdDeg;
+
+    if (p[0] < minLng || p[0] > maxLng || p[1] < minLat || p[1] > maxLat) {
+      continue;
+    }
+
+    const d = pointToSegmentDistance(p, a, b);
     if (d < minDistanceMeters) {
       minDistanceMeters = d;
     }
   }
 
+  // 若快速粗筛未命中，进行全线兜底
+  if (minDistanceMeters === Infinity) {
+    for (let i = 0; i < polyline.length - 1; i++) {
+      const d = pointToSegmentDistance(p, polyline[i], polyline[i + 1]);
+      if (d < minDistanceMeters) minDistanceMeters = d;
+    }
+  }
+
   return Number((minDistanceMeters / 1000).toFixed(1));
 }
+
+// 根据垂直距离估算往返绕行增加里程 (km)
+export function estimateDetourKm(perpendicularDistanceKm: number): number {
+  if (perpendicularDistanceKm <= 0.1) return 0.2;
+  // 实际道路迂回系数约 1.8 ~ 2.0 倍垂距
+  return Number((perpendicularDistanceKm * 1.8).toFixed(1));
+}
+
+// 顺路等级评定
+export function classifyDetourGrade(
+  distanceKm: number
+): 'direct' | 'minimal' | 'moderate' | 'deep' {
+  if (distanceKm <= 1.0) return 'direct';
+  if (distanceKm <= 3.0) return 'minimal';
+  if (distanceKm <= 6.0) return 'moderate';
+  return 'deep';
+}
+

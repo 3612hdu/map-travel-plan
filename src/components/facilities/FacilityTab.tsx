@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useTripStore } from '../../store/useTripStore';
 import { FacilityCategory } from '../../types/poi';
 import { FacilityCard } from './FacilityCard';
-import { searchCorridorPois } from '../../services/corridorSearch';
+import { searchCorridorPois, SegmentPathInfo } from '../../services/corridorSearch';
+import { FACILITY_CATEGORIES } from '../../config/poiTypes';
 
 export const FacilityTab: React.FC = () => {
   const {
@@ -17,12 +18,12 @@ export const FacilityTab: React.FC = () => {
     selectedOptions,
     routeResults,
     searchQuery,
-    searchScope
+    searchScope,
+    showFacilitiesOnMap,
+    setShowFacilitiesOnMap
   } = useTripStore();
 
-  const [showOnMap, setShowOnMap] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
-
   const currentSeg = segments.find((s) => s.id === activeSegmentId);
 
   // 监听搜索词、分类、以及路段切换，触发高德走廊搜索
@@ -35,14 +36,23 @@ export const FacilityTab: React.FC = () => {
       const optId = selectedOptions[currentSeg.id] || currentSeg.chosen;
       const res = routeResults[`${currentSeg.id}:${optId}`];
 
+      // 构建所有路段信息 (供全程模式下标注 POI 所属赛段)
+      const allSegmentsInfo: SegmentPathInfo[] = segments.map((seg) => {
+        const segOptId = selectedOptions[seg.id] || seg.chosen;
+        const segRes = routeResults[`${seg.id}:${segOptId}`];
+        return {
+          segmentId: seg.id,
+          segmentTitle: seg.title,
+          path: segRes?.path || []
+        };
+      });
+
       // 如果是全程模式，拼接全程路线
       let searchPath = res?.path || [];
       if (searchScope === 'trip') {
         const fullPath: [number, number][] = [];
-        segments.forEach((seg) => {
-          const segOptId = selectedOptions[seg.id] || seg.chosen;
-          const segRes = routeResults[`${seg.id}:${segOptId}`];
-          if (segRes?.path) fullPath.push(...segRes.path);
+        allSegmentsInfo.forEach((info) => {
+          if (info.path.length > 0) fullPath.push(...info.path);
         });
         if (fullPath.length > 0) searchPath = fullPath;
       }
@@ -53,7 +63,8 @@ export const FacilityTab: React.FC = () => {
           searchQuery,
           selectedCategory,
           searchPath,
-          currentSeg.id
+          currentSeg.id,
+          allSegmentsInfo
         );
         if (!isCancelled) {
           setFacilities(results);
@@ -89,14 +100,14 @@ export const FacilityTab: React.FC = () => {
     }
   }, [selectedPoiId]);
 
-  const categories: { key: FacilityCategory; label: string }[] = [
-    { key: 'all', label: '全部' },
-    { key: 'hotel', label: '酒店/民宿' },
-    { key: 'food', label: '餐饮' },
-    { key: 'gas', label: '加油站' },
-    { key: 'ev', label: '充电站' },
-    { key: 'toilet', label: '厕所' },
-    { key: 'parking', label: '停车场' }
+  const categories: { key: FacilityCategory; label: string; emoji: string }[] = [
+    { key: 'all', label: '全部', emoji: '📍' },
+    { key: 'hotel', label: '酒店/民宿', emoji: '🏨' },
+    { key: 'food', label: '餐饮', emoji: '🍴' },
+    { key: 'gas', label: '加油站', emoji: '⛽' },
+    { key: 'ev', label: '充电站', emoji: '⚡' },
+    { key: 'toilet', label: '厕所', emoji: '🚾' },
+    { key: 'parking', label: '停车场', emoji: '🅿️' }
   ];
 
   const getCategoryCount = (cat: FacilityCategory) => {
@@ -115,7 +126,9 @@ export const FacilityTab: React.FC = () => {
             className={`filter-pill ${selectedCategory === c.key ? 'active' : ''}`}
             onClick={() => setSelectedCategory(c.key)}
           >
-            {c.label} ({getCategoryCount(c.key)})
+            <span>{c.emoji}</span>
+            <span>{c.label}</span>
+            <span style={{ fontSize: '11px', opacity: 0.75 }}>({getCategoryCount(c.key)})</span>
           </button>
         ))}
       </div>
@@ -135,8 +148,8 @@ export const FacilityTab: React.FC = () => {
       >
         <div>
           <span>
-            {searchScope === 'trip' ? '全程自驾走廊' : currentSeg?.title} · 沿线附近 · 共{' '}
-            <strong>{facilities.length}</strong> 个设施
+            {searchScope === 'trip' ? '全程自驾走廊' : currentSeg?.title} · 顺路设施 · 共{' '}
+            <strong style={{ color: '#0f172a' }}>{facilities.length}</strong> 处
           </span>
           {isSearching && (
             <span style={{ color: '#1875ff', marginLeft: '6px' }}>
@@ -151,14 +164,15 @@ export const FacilityTab: React.FC = () => {
             alignItems: 'center',
             gap: '5px',
             cursor: 'pointer',
-            fontWeight: 600,
-            fontSize: '11px'
+            fontWeight: 650,
+            fontSize: '11.5px',
+            color: '#334155'
           }}
         >
           <input
             type="checkbox"
-            checked={showOnMap}
-            onChange={(e) => setShowOnMap(e.target.checked)}
+            checked={showFacilitiesOnMap}
+            onChange={(e) => setShowFacilitiesOnMap(e.target.checked)}
           />
           <span>在地图上显示</span>
         </label>

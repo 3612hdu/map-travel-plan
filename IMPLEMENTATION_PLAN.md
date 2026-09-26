@@ -7,6 +7,56 @@
 
 ---
 
+## 0. 会话交接与最新代码审计 (2026-09-26 重新审计)
+
+### 0.1 真实可运行状态与检查清单
+- **构建状态**：`npm run build` (tsc && vite build) 100% 成功，0 错误，打包产物体积约 300 kB。
+- **运行环境**：本地服务运行于 `http://127.0.0.1:5173/`，浏览器控制台 0 错误（已配置 SVG Favicon，排除 404）。
+- **Phase A/B 既有能力保真度**：
+  - 三栏布局（左侧行程 22%、中间地图与方案 48%、右侧视频/设施 30%）完全对齐设计图 `01-video-tab-layout.png`。
+  - 高德 JS API 2.0 底图平滑渲染，实时路况图层与图例开关完全正常。
+  - 丹江口至郧阳 (s6) 3 路线对比卡（普通、环库风景、折中）与路线亮点横向列表正常。
+  - 顶栏搜索框与“全程/当前路段”作用域切换正常。
+  - 右侧共享面板“沿途视频”与“沿途设施”Tab 互斥切换正常。
+- **已排查并修复的技术债**：
+  1. **高德并发限流排队机制**：初始页面 8 个规划请求同时并发曾导致 AMap 服务端频控丢包（仅规划 2/6 或 3/6 段）。已在 `amapService.ts` 引入指数退避重试（最多 2 次），并在 `CenterMapArea.tsx` 采用优先计算当前段、后续段平滑队列机制，全行程 6/6 段（711 km）规划成功率达到 100%。
+  2. **POI 停靠点城市硬编码清洗**：移除了 `city: '十堰市'` 硬编码，改为从 POI 地址动态正则提取或回退当前段终点城市。
+  3. **导航服务策略混淆修复**：移除了 URI API 中硬编码的 `policy: '7'`，替换为符合 URI API 规范的策略适配器。
+  4. **走廊采样算法覆盖**：修复了 `sampleCenters` 在 600km+ 全程模式下被上限 12 截断导致后半程遗漏的隐患，确保全线无死角抽样。
+
+### 0.2 TEST 06 路线策略 (RoutePreference) 权威审计
+
+#### 用户的核心自驾路线偏好：
+1. **不走高速** (`avoidHighway: true`)
+2. **尽量少收费** (`avoidToll: true`)
+3. **可以选择躲避拥堵** (`avoidCongestion: boolean`)
+4. **风景路线允许通过途经点进行人为引导**
+
+#### 真实 API 文档与浏览器端实测对照：
+经 2026-09-26 真实浏览器实测与官方文档严格核对，不同高德 API 采用**完全不同**的策略枚举体系，严禁混用：
+
+| 平台 API | 参数名称 | 核心策略枚举值与实测表现 | 针对“不走高速+少收费+躲拥堵”的处理方式 |
+| :--- | :--- | :--- | :--- |
+| **AMap JS API 2.0 Driving** | `policy` | - `0`: `LEAST_TIME` (速度优先)<br>- `1`: `LEAST_FEE` (费用优先/少收费)<br>- `2`: `LEAST_DISTANCE` (最短距离)<br>- `4`: `REAL_TRAFFIC` (避拥堵)<br>- `5`: `MULTI_POLICIES` (多策略，**走高速**，实测过路费 ¥37)<br>- `6`: `HIGHWAY` (不走高速，实测 ¥0)<br>- `7`: `FEE_HIGHWAY` (不走高速且避免收费，实测 ¥0)<br>- `8`: `FEE_TRAFFIC` (避免收费且躲避拥堵)<br>- `9`: `TRAFFIC_HIGHWAY` (不走高速且躲避拥堵) | **官方局限**：JS API 2.0 **没有三合一常量**。当三项全选时，绝不伪造映射，降级使用 `7` (`FEE_HIGHWAY` 不走高速且少收费) 或 `9` (`TRAFFIC_HIGHWAY`)，优先捍卫“不走高速”底线。 |
+| **Web Service 路径规划 2.0 (`/v5/direction/driving`)** | `strategy` | - `32`: 默认高德推荐<br>- `33`: 躲避拥堵<br>- `34`: 高速优先<br>- `35`: 不走高速<br>- `36`: 少收费<br>- `40`: 躲避拥堵 + 不走高速<br>- `41`: 躲避拥堵 + 少收费<br>- `42`: 少收费 + 不走高速<br>- `43`: **躲避拥堵 + 少收费 + 不走高速** | **完美支持**：官方明确定义 `strategy=43` 为“躲避拥堵+少收费+不走高速”组合，可作为未来 Web Service 精确算路并回传前端画线的演进方向。 |
+| **高德 URI API (`uri.amap.com/navigation`)** | `policy` | 驾车模式 (`mode=car`)：<br>- `0`: 推荐策略<br>- `1`: 避免拥堵<br>- `2`: 避免收费<br>- `3`: 不走高速 (移动端优先) | 严禁填入 JS API 的 7 或 Web Service 的 43。通过 `mapPreferenceToUriPolicy` 精确输出 `3`（不走高速）或 `2`。 |
+
+#### 代码架构实现：
+统一在 `src/types/preference.ts` 维护统一抽象：
+```ts
+export interface RoutePreference {
+  avoidHighway: boolean;
+  avoidToll: boolean;
+  avoidCongestion: boolean;
+}
+```
+并输出三套相互隔离的适配器：
+1. `mapPreferenceToAMapJsApiPolicy(pref)`
+2. `mapPreferenceToWebServiceStrategy(pref)`
+3. `mapPreferenceToUriPolicy(pref)`
+
+---
+
 ## 1. 当前项目现状审计
 
 ### 1.1 文件与资产结构

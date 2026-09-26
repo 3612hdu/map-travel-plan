@@ -19,7 +19,8 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ poi, isSelected, onS
     segments,
     selectedOptions,
     setRouteResult,
-    setActiveSegment
+    setActiveSegment,
+    preference
   } = useTripStore();
 
   const targetSegId = poi.sourceSegmentId || activeSegmentId;
@@ -60,17 +61,18 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ poi, isSelected, onS
         ) || targetSeg.options[0];
 
       amapService
-        .planSegment(targetSeg, opt, remainingWaypoints)
+        .planSegment(targetSeg, opt, remainingWaypoints, preference)
         .then((res) => {
           setRouteResult(`${targetSeg.id}:${opt.id}`, res);
         });
     } else {
+      const detectedCity = poi.address.match(/(.+?[市区县])/)?.[1] || targetSeg.title.split('→')[1]?.trim() || '湖北';
       const stop = {
         id: poi.id,
         name: poi.name,
         coord: poi.coord,
         poi: poi.poiId || '',
-        city: '十堰市',
+        city: detectedCity,
         address: poi.address
       };
       addWaypoint(targetSeg.id, stop);
@@ -82,7 +84,7 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ poi, isSelected, onS
         ) || targetSeg.options[0];
 
       amapService
-        .planSegment(targetSeg, opt, [...waypoints, stop])
+        .planSegment(targetSeg, opt, [...waypoints, stop], preference)
         .then((res) => {
           setRouteResult(`${targetSeg.id}:${opt.id}`, res);
         });
@@ -114,15 +116,43 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ poi, isSelected, onS
             {renderCategoryIcon()}
           </div>
           <div>
-            <div className="facility-name">{poi.name}</div>
-            <div style={{ fontSize: '11px', color: '#64748b' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div className="facility-name">{poi.name}</div>
+              {poi.sourceSegmentTitle && (
+                <span
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    color: '#4338ca',
+                    background: '#e0e7ff',
+                    padding: '1px 5px',
+                    borderRadius: '4px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {poi.sourceSegmentTitle}
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
               {poi.address || poi.status}
             </div>
           </div>
         </div>
 
-        <div className="facility-distance-badge">
-          距路线 {poi.distanceToRoute} km
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <div className="facility-distance-badge" style={{
+            background: poi.distanceToRoute <= 1.0 ? '#ecfdf5' : '#eff6ff',
+            color: poi.distanceToRoute <= 1.0 ? '#059669' : '#1d4ed8',
+            borderColor: poi.distanceToRoute <= 1.0 ? '#a7f3d0' : '#bfdbfe'
+          }}>
+            距路线 {poi.distanceToRoute} km
+          </div>
+          {poi.detourDistance != null && (
+            <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px', fontWeight: 600 }}>
+              预计绕行 +{poi.detourDistance} km
+            </div>
+          )}
         </div>
       </div>
 
@@ -139,6 +169,14 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ poi, isSelected, onS
 
       <div className="facility-card-bottom">
         <div className="facility-tags">
+          {poi.distanceToRoute <= 1.0 && (
+            <span
+              className="feature-pill"
+              style={{ background: '#ecfdf5', color: '#059669', borderColor: '#a7f3d0' }}
+            >
+              ★ 极度顺路
+            </span>
+          )}
           {(poi.tags || []).slice(0, 3).map((tag, idx) => (
             <span key={idx} className="feature-pill">
               {tag}

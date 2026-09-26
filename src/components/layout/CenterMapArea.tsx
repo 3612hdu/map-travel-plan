@@ -21,7 +21,8 @@ export const CenterMapArea: React.FC = () => {
     selectedPoiId,
     focusPoi,
     addWaypoint,
-    preference
+    preference,
+    showFacilitiesOnMap
   } = useTripStore();
 
   const currentSeg = segments.find((s) => s.id === activeSegmentId);
@@ -31,34 +32,56 @@ export const CenterMapArea: React.FC = () => {
     if (mapMountedRef.current) return;
     mapMountedRef.current = true;
 
-    amapService.initMap('amap-root').then(() => {
-      // 初始规划所有选中的路线，并预规划重点段(s6)的全部备选方案
-      segments.forEach((seg) => {
-        // 先规划当前已选方案
-        const chosenOpt = seg.options.find((o) => o.id === seg.chosen) || seg.options[0];
-        amapService
-          .planSegment(seg, chosenOpt, customWaypoints[seg.id] || [], preference)
-          .then((res) => {
-            setRouteResult(`${seg.id}:${chosenOpt.id}`, res);
-          })
-          .catch((err) => {
-            console.warn(`路段 ${seg.id} 算路失败:`, err);
-          });
+    amapService.initMap('amap-root').then(async () => {
+      // 1. 优先算路当前激活路段（默认 s6 丹江口），确保用户第一屏立刻呈现
+      const activeSeg = segments.find((s) => s.id === activeSegmentId) || segments[0];
+      const activeChosenOpt = activeSeg.options.find((o) => o.id === activeSeg.chosen) || activeSeg.options[0];
+      try {
+        const res = await amapService.planSegment(
+          activeSeg,
+          activeChosenOpt,
+          customWaypoints[activeSeg.id] || [],
+          preference
+        );
+        setRouteResult(`${activeSeg.id}:${activeChosenOpt.id}`, res);
+      } catch (err) {
+        console.warn(`初始路段 ${activeSeg.id} 算路重试中:`, err);
+      }
 
-        // 重点路段（多走法对比）预先算路其余走法
-        if (seg.options.length > 1) {
-          seg.options.forEach((opt) => {
-            if (opt.id !== chosenOpt.id) {
-              amapService
-                .planSegment(seg, opt, customWaypoints[seg.id] || [], preference)
-                .then((res) => {
-                  setRouteResult(`${seg.id}:${opt.id}`, res);
-                })
-                .catch(() => {});
-            }
-          });
+      // 预先规划当前激活路段的备选方案（用于 3 卡对比）
+      if (activeSeg.options.length > 1) {
+        for (const opt of activeSeg.options) {
+          if (opt.id !== activeChosenOpt.id) {
+            try {
+              const res = await amapService.planSegment(
+                activeSeg,
+                opt,
+                customWaypoints[activeSeg.id] || [],
+                preference
+              );
+              setRouteResult(`${activeSeg.id}:${opt.id}`, res);
+            } catch {}
+          }
         }
-      });
+      }
+
+      // 2. 依次平滑规划其他路段（间隔 150ms 规避高德 QPS 限制）
+      for (const seg of segments) {
+        if (seg.id === activeSeg.id) continue;
+        await new Promise((r) => setTimeout(r, 150));
+        const chosenOpt = seg.options.find((o) => o.id === seg.chosen) || seg.options[0];
+        try {
+          const res = await amapService.planSegment(
+            seg,
+            chosenOpt,
+            customWaypoints[seg.id] || [],
+            preference
+          );
+          setRouteResult(`${seg.id}:${chosenOpt.id}`, res);
+        } catch (err) {
+          console.warn(`路段 ${seg.id} 算路失败:`, err);
+        }
+      }
     });
   }, []);
 
@@ -83,6 +106,11 @@ export const CenterMapArea: React.FC = () => {
     const map = amapService.getMap();
     if (!map) return;
 
+    if (!showFacilitiesOnMap) {
+      amapService.clearPoiMarkers();
+      return;
+    }
+
     amapService.renderPoiMarkers(
       facilities,
       selectedPoiId,
@@ -91,12 +119,13 @@ export const CenterMapArea: React.FC = () => {
       },
       (poi) => {
         if (currentSeg) {
+          const detectedCity = poi.address.match(/(.+?[市区县])/)?.[1] || verifiedStops[currentSeg.end]?.city || '湖北';
           const newStop = {
             id: poi.id,
             name: poi.name,
             coord: poi.coord,
             poi: poi.poiId || '',
-            city: '十堰市',
+            city: detectedCity,
             address: poi.address
           };
           addWaypoint(currentSeg.id, newStop);
@@ -106,17 +135,19 @@ export const CenterMapArea: React.FC = () => {
               (o) => o.id === (selectedOptions[currentSeg.id] || currentSeg.chosen)
             ) || currentSeg.options[0];
           amapService
-            .planSegment(currentSeg, opt, [
-              ...(customWaypoints[currentSeg.id] || []),
-              newStop
-            ])
+            .planSegment(
+              currentSeg,
+              opt,
+              [...(customWaypoints[currentSeg.id] || []), newStop],
+              preference
+            )
             .then((res) => {
               setRouteResult(`${currentSeg.id}:${opt.id}`, res);
             });
         }
       }
     );
-  }, [facilities, selectedPoiId, currentSeg, customWaypoints]);
+  }, [facilities, selectedPoiId, currentSeg, customWaypoints, preference, showFacilitiesOnMap]);
 
   const handleFitAll = () => {
     amapService.fitToAll();
@@ -126,7 +157,7 @@ export const CenterMapArea: React.FC = () => {
     if (!currentSeg) return;
     const targetStop = verifiedStops[currentSeg.end];
     const waypoints = customWaypoints[currentSeg.id] || [];
-    startAmapNavigation(targetStop, waypoints);
+    startAmapNavigation(targetStop, waypoints, preference);
   };
 
   return (

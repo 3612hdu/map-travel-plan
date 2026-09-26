@@ -112,7 +112,8 @@ class AMapService {
     segment: Segment,
     option: RouteOption,
     customWaypoints: Stop[] = [],
-    preference: RoutePreference = DEFAULT_PREFERENCE
+    preference: RoutePreference = DEFAULT_PREFERENCE,
+    maxRetries = 2
   ): Promise<RouteCalcResult> {
     const api = await this.load();
     const startStop = verifiedStops[segment.start];
@@ -124,57 +125,70 @@ class AMapService {
     const waypoints = [...defaultWaypoints, ...customCoords];
     const aMapPolicy = mapPreferenceToAMapPolicy(preference);
 
-    return new Promise((resolve, reject) => {
-      try {
-        const driving = new api.Driving({
-          policy: aMapPolicy,
-          extensions: 'all',
-          ferry: 1
-        });
+    const executeSearch = (attempt: number): Promise<RouteCalcResult> => {
+      return new Promise((resolve, reject) => {
+        try {
+          const driving = new api.Driving({
+            policy: aMapPolicy,
+            extensions: 'all',
+            ferry: 1
+          });
 
-        driving.search(
-          startStop.coord,
-          endStop.coord,
-          { waypoints },
-          (status: string, result: any) => {
-            if (status !== 'complete' || !result?.routes?.[0]) {
-              reject(new Error(`高德算路未返回路线: ${status}`));
-              return;
-            }
-
-            const route = result.routes[0];
-            const path: [number, number][] = [];
-
-            // 提取平滑 polyline 坐标序列
-            for (const step of route.steps || []) {
-              for (const p of step.path || []) {
-                const lng = typeof p.getLng === 'function' ? p.getLng() : p.lng || p[0];
-                const lat = typeof p.getLat === 'function' ? p.getLat() : p.lat || p[1];
-                if (lng && lat) path.push([lng, lat]);
+          driving.search(
+            startStop.coord,
+            endStop.coord,
+            { waypoints },
+            async (status: string, result: any) => {
+              if (status !== 'complete' || !result?.routes?.[0]) {
+                if (attempt < maxRetries) {
+                  // 指数退避重试 (解决高德并发 QPS 频率限制)
+                  await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+                  return resolve(executeSearch(attempt + 1));
+                }
+                reject(new Error(`高德算路未返回路线: ${status}`));
+                return;
               }
+
+              const route = result.routes[0];
+              const path: [number, number][] = [];
+
+              // 提取平滑 polyline 坐标序列
+              for (const step of route.steps || []) {
+                for (const p of step.path || []) {
+                  const lng = typeof p.getLng === 'function' ? p.getLng() : p.lng || p[0];
+                  const lat = typeof p.getLat === 'function' ? p.getLat() : p.lat || p[1];
+                  if (lng && lat) path.push([lng, lat]);
+                }
+              }
+
+              const roads = Array.from(
+                new Set(
+                  (route.steps || [])
+                    .map((x: any) => x.road)
+                    .filter(Boolean)
+                )
+              ).slice(0, 10) as string[];
+
+              resolve({
+                path,
+                distance: Number(route.distance) || 0,
+                time: Number(route.time) || 0,
+                tolls: route.tolls != null ? Number(route.tolls) : 0,
+                roads
+              });
             }
-
-            const roads = Array.from(
-              new Set(
-                (route.steps || [])
-                  .map((x: any) => x.road)
-                  .filter(Boolean)
-              )
-            ).slice(0, 10) as string[];
-
-            resolve({
-              path,
-              distance: Number(route.distance) || 0,
-              time: Number(route.time) || 0,
-              tolls: route.tolls != null ? Number(route.tolls) : 0,
-              roads
-            });
+          );
+        } catch (err) {
+          if (attempt < maxRetries) {
+            setTimeout(() => resolve(executeSearch(attempt + 1)), 400 * (attempt + 1));
+          } else {
+            reject(err);
           }
-        );
-      } catch (err) {
-        reject(err);
-      }
-    });
+        }
+      });
+    };
+
+    return executeSearch(0);
   }
 
   // 渲染所有路段的 Polyline
@@ -252,7 +266,19 @@ class AMapService {
     }
   }
 
-  // 渲染沿线设施与停靠点 Markers
+  // 清空沿线设施 Markers
+  clearPoiMarkers() {
+    if (!this.map) return;
+    if (this.markerLayers.length > 0) {
+      this.map.remove(this.markerLayers);
+      this.markerLayers = [];
+    }
+    if (this.infoWindow) {
+      this.infoWindow.close();
+    }
+  }
+
+  // 渲染沿线设施与停靠点 Markers (支持分类色彩、顺路微标签与双向聚焦)
   renderPoiMarkers(
     pois: RoutePoi[],
     selectedPoiId: string | null,
@@ -262,45 +288,48 @@ class AMapService {
     if (!this.map || !this.api) return;
 
     // 清空现有 Marker
-    if (this.markerLayers.length > 0) {
-      this.map.remove(this.markerLayers);
-      this.markerLayers = [];
-    }
+    this.clearPoiMarkers();
+
+    // 分类样式配置
+    const categoryTheme: Record<string, { emoji: string; color: string; bg: string }> = {
+      hotel: { emoji: '🏨', color: '#1d4ed8', bg: '#eff6ff' },
+      food: { emoji: '🍴', color: '#e11d48', bg: '#fff1f2' },
+      gas: { emoji: '⛽', color: '#d97706', bg: '#fffbeb' },
+      ev: { emoji: '⚡', color: '#059669', bg: '#ecfdf5' },
+      toilet: { emoji: '🚾', color: '#0284c7', bg: '#f0f9ff' },
+      parking: { emoji: '🅿️', color: '#475569', bg: '#f8fafc' }
+    };
 
     pois.forEach((poi) => {
       const isSelected = poi.id === selectedPoiId;
-
-      // 类别图标映射
-      const iconMap: Record<string, string> = {
-        hotel: '🏨',
-        food: '🍴',
-        gas: '⛽',
-        ev: '⚡',
-        toilet: '🚾',
-        parking: '🅿️'
-      };
-      const emoji = iconMap[poi.category] || '📍';
+      const theme = categoryTheme[poi.category] || { emoji: '📍', color: '#1875ff', bg: '#eff6ff' };
+      const detourKm = poi.distanceToRoute;
 
       const content = document.createElement('div');
       content.className = `poi-custom-marker ${isSelected ? 'marker-selected' : ''}`;
       content.style.cssText = `
-        background: ${isSelected ? '#1875ff' : '#ffffff'};
+        background: ${isSelected ? theme.color : '#ffffff'};
         color: ${isSelected ? '#ffffff' : '#0f172a'};
-        border: 2px solid ${isSelected ? '#ffffff' : '#1875ff'};
+        border: 2px solid ${theme.color};
         border-radius: 99px;
         padding: 3px 8px;
         font-size: 11px;
         font-weight: 700;
-        box-shadow: 0 3px 10px rgba(0,0,0,0.18);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.16);
         cursor: pointer;
         display: flex;
         align-items: center;
         gap: 4px;
         white-space: nowrap;
-        transform: translate(-50%, -50%);
-        transition: transform 0.15s;
+        transform: translate(-50%, -50%) ${isSelected ? 'scale(1.12)' : 'scale(1)'};
+        transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: ${isSelected ? '999' : '50'};
       `;
-      content.innerHTML = `<span>${emoji}</span><span>${poi.name.slice(0, 7)}</span>`;
+      content.innerHTML = `
+        <span>${theme.emoji}</span>
+        <span>${poi.name.slice(0, 6)}</span>
+        <span style="font-size: 9.5px; opacity: 0.85; margin-left: 2px;">${detourKm}km</span>
+      `;
 
       const marker = new this.api.Marker({
         position: poi.coord,
@@ -326,32 +355,38 @@ class AMapService {
   openPoiInfoWindow(poi: RoutePoi, onAddWaypoint?: (poi: RoutePoi) => void) {
     if (!this.map || !this.api || !this.infoWindow) return;
 
+    const segmentTag = poi.sourceSegmentTitle ? `
+      <div style="font-size: 10.5px; color: #4338ca; background: #e0e7ff; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-bottom: 6px; font-weight: 700;">
+        📍 归属路段: ${poi.sourceSegmentTitle}
+      </div>
+    ` : '';
+
     const html = `
-      <div style="padding: 10px; font-family: system-ui; max-width: 260px;">
-        <div style="font-weight: 800; font-size: 14px; color: #0f172a; margin-bottom: 4px;">
+      <div style="padding: 10px; font-family: system-ui, -apple-system, sans-serif; max-width: 270px;">
+        ${segmentTag}
+        <div style="font-weight: 800; font-size: 14px; color: #0f172a; margin-bottom: 3px; line-height: 1.3;">
           ${poi.name}
         </div>
-        <div style="font-size: 11.5px; color: #64748b; margin-bottom: 6px;">
-          ${poi.address || '暂无详细地址'}
+        <div style="font-size: 11.5px; color: #64748b; margin-bottom: 8px;">
+          ${poi.address || '湖北省自驾走廊沿线'}
         </div>
-        <div style="display: flex; gap: 6px; font-size: 11px; color: #059669; font-weight: 700; margin-bottom: 8px;">
-          <span>距路线约 ${poi.distanceToRoute} km</span>
-          ${poi.rating ? `<span>★ ${poi.rating}</span>` : ''}
+        <div style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px; margin-bottom: 10px;">
+          <span style="background: #ecfdf5; color: #059669; font-weight: 700; padding: 2px 6px; border-radius: 4px;">
+            距路线 ${poi.distanceToRoute} km
+          </span>
+          <span style="background: #f8fafc; color: #475569; font-weight: 600; padding: 2px 6px; border-radius: 4px;">
+            预计绕行 +${poi.detourDistance || 0.5} km
+          </span>
+          ${poi.rating ? `<span style="color: #f59e0b; font-weight: 700;">★ ${poi.rating}</span>` : ''}
         </div>
         <div style="display: flex; gap: 6px;">
           <button id="btn-info-add-waypoint" style="
-            background: #059669; color: white; border: none; border-radius: 6px;
-            padding: 4px 10px; font-size: 11px; font-weight: 700; cursor: pointer;
+            flex: 1; background: #059669; color: white; border: none; border-radius: 6px;
+            padding: 5px 10px; font-size: 11.5px; font-weight: 700; cursor: pointer;
+            box-shadow: 0 1px 3px rgba(5,150,105,0.3);
           ">
-            + 加入停靠点
+            + 加入此站为停靠点
           </button>
-          <a href="https://uri.amap.com/marker?position=${poi.coord.join(',')}&name=${encodeURIComponent(poi.name)}"
-             target="_blank" rel="noopener noreferrer" style="
-            background: #f1f5f9; color: #334155; text-decoration: none; border-radius: 6px;
-            padding: 4px 10px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center;
-          ">
-            高德详情 ↗
-          </a>
         </div>
       </div>
     `;
@@ -363,9 +398,12 @@ class AMapService {
     setTimeout(() => {
       const btn = document.getElementById('btn-info-add-waypoint');
       if (btn && onAddWaypoint) {
-        btn.onclick = () => onAddWaypoint(poi);
+        btn.onclick = () => {
+          onAddWaypoint(poi);
+          this.infoWindow.close();
+        };
       }
-    }, 100);
+    }, 80);
   }
 
   // 平移居中到指定坐标

@@ -568,7 +568,7 @@ class AMapService {
 
     const photoHtml = node.photoUrl
       ? `<div style="margin-bottom: 8px;">
-           <img src="${node.photoUrl}" alt="${node.name}" style="width: 100%; max-height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #e2e8f0;" />
+           <img src="${node.photoUrl}" alt="${node.name}" style="width: 100%; max-height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #e2e8f0;" onerror="this.parentElement.style.display='none'" />
            <div style="font-size: 10px; color: #64748b; margin-top: 2px;">实景核验：${node.photoTitle || node.name}</div>
          </div>`
       : `<div style="padding: 6px 8px; background: #f8fafc; border-radius: 6px; border: 1px dashed #cbd5e1; font-size: 10.5px; color: #94a3b8; text-align: center; margin-bottom: 8px;">

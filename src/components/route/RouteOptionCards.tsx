@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Check } from 'lucide-react';
 import { useTripStore } from '../../store/useTripStore';
 import { formatDuration } from '../../utils/geo';
@@ -18,6 +18,41 @@ export const RouteOptionCards: React.FC = () => {
   } = useTripStore();
 
   const currentSeg = segments.find((s) => s.id === activeSegmentId);
+  const currentWaypoints = currentSeg ? customWaypoints[currentSeg.id] || [] : [];
+
+  // 途经点变化会清除本段所有旧方案；重新计算三张卡片，保持比较数据一致。
+  useEffect(() => {
+    if (!currentSeg) return;
+    let cancelled = false;
+    const waypointIds = currentWaypoints.map((stop) => stop.id).join('|');
+
+    const refreshOptions = async () => {
+      for (const opt of currentSeg.options) {
+        if (cancelled) return;
+        const key = `${currentSeg.id}:${opt.id}`;
+        if (useTripStore.getState().routeResults[key]) continue;
+        try {
+          const res = await amapService.planSegment(currentSeg, opt, currentWaypoints, preference);
+          if (cancelled) return;
+          const latest = useTripStore.getState();
+          const latestSeg = latest.segments.find((seg) => seg.id === currentSeg.id);
+          const sameEndpoints = latestSeg?.customStartCoord?.join(',') === currentSeg.customStartCoord?.join(',')
+            && latestSeg?.customEndCoord?.join(',') === currentSeg.customEndCoord?.join(',');
+          if (latestSeg && sameEndpoints
+            && (latest.customWaypoints[currentSeg.id] || []).map((stop) => stop.id).join('|') === waypointIds
+            && latest.preference === preference) {
+            latest.setRouteResult(key, res);
+          }
+        } catch (error) {
+          console.warn(`方案 ${currentSeg.id}:${opt.id} 算路失败:`, error);
+        }
+      }
+    };
+
+    refreshOptions();
+    return () => { cancelled = true; };
+  }, [currentSeg, customWaypoints, preference]);
+
   if (!currentSeg) return null;
 
   const currentChosenOptionId =
@@ -43,9 +78,12 @@ export const RouteOptionCards: React.FC = () => {
             preference
           );
           const latest = useTripStore.getState();
+          const latestSeg = latest.segments.find((seg) => seg.id === currentSeg.id);
+          const sameEndpoints = latestSeg?.customStartCoord?.join(',') === currentSeg.customStartCoord?.join(',')
+            && latestSeg?.customEndCoord?.join(',') === currentSeg.customEndCoord?.join(',');
           const sameWaypoints = (latest.customWaypoints[currentSeg.id] || []).map((stop) => stop.id).join('|')
             === (customWaypoints[currentSeg.id] || []).map((stop) => stop.id).join('|');
-          if (sameWaypoints && latest.preference === preference) setRouteResult(resKey, res);
+          if (latestSeg && sameEndpoints && sameWaypoints && latest.preference === preference) setRouteResult(resKey, res);
         } catch (e) {
           console.warn('方案算路失败:', e);
         }

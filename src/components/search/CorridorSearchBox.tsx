@@ -20,13 +20,9 @@ export const CorridorSearchBox: React.FC = () => {
     setInputValue(searchQuery);
   }, [searchQuery]);
 
-  const handleSearchSubmit = (e?: React.FormEvent) => {
-    if (e && e.preventDefault) e.preventDefault();
-    const inputEl = document.querySelector<HTMLInputElement>('.search-input');
-    const domVal = inputEl?.value;
-    const finalVal = (domVal !== undefined && domVal !== '') ? domVal : inputValue;
-    setInputValue(finalVal);
-    setSearchQuery(finalVal);
+  const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSearchQuery(inputValue);
     setActiveContentTab('facilities');
   };
 
@@ -50,22 +46,23 @@ export const CorridorSearchBox: React.FC = () => {
   return (
     <div style={{ position: 'relative', width: '100%', maxWidth: '560px' }}>
       <form onSubmit={handleSearchSubmit} className="search-corridor-wrapper">
-        {isSearching ? (
-          <Loader2 size={16} color="#1875ff" className="animate-spin" style={{ flexShrink: 0 }} />
-        ) : (
-          <Search size={16} color="#94a3b8" style={{ flexShrink: 0 }} />
-        )}
+        <button
+          type="submit"
+          aria-label="搜索沿途设施"
+          style={{ display: 'flex', alignItems: 'center', flexShrink: 0, padding: 0, border: 0, background: 'none', cursor: 'pointer' }}
+        >
+          {isSearching ? (
+            <Loader2 size={16} color="#1875ff" className="animate-spin" />
+          ) : (
+            <Search size={16} color="#94a3b8" />
+          )}
+        </button>
         <input
           type="text"
           className="search-input"
           placeholder="搜索沿途的酒店、民宿、餐厅、加油站、充电站、公厕..."
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.keyCode === 13 || e.which === 13) {
-              handleSearchSubmit(e as any);
-            }
-          }}
         />
         {inputValue && (
           <button
@@ -156,7 +153,7 @@ export const CorridorSearchBox: React.FC = () => {
               fontWeight: 700
             }}
           >
-            搜索搜索范围
+            搜索范围
           </div>
           <button
             type="button"

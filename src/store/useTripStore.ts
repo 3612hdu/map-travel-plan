@@ -328,18 +328,28 @@ export const useTripStore = create<TripStore>((set, get) => {
           customWaypoints: {
             ...state.customWaypoints,
             [segmentId]: [...current, stop]
-          }
+          },
+          routeResults: Object.fromEntries(
+            Object.entries(state.routeResults).filter(([key]) => !key.startsWith(`${segmentId}:`))
+          )
         };
       });
     },
 
     removeWaypoint: (segmentId, stopId) => {
-      set((state) => ({
-        customWaypoints: {
-          ...state.customWaypoints,
-          [segmentId]: (state.customWaypoints[segmentId] || []).filter((w) => w.id !== stopId)
-        }
-      }));
+      set((state) => {
+        const current = state.customWaypoints[segmentId] || [];
+        if (!current.some((stop) => stop.id === stopId)) return state;
+        return {
+          customWaypoints: {
+            ...state.customWaypoints,
+            [segmentId]: current.filter((stop) => stop.id !== stopId)
+          },
+          routeResults: Object.fromEntries(
+            Object.entries(state.routeResults).filter(([key]) => !key.startsWith(`${segmentId}:`))
+          )
+        };
+      });
     },
 
     setActiveContentTab: (tab) => set({ activeContentTab: tab }),

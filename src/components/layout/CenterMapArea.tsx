@@ -48,18 +48,27 @@ export const CenterMapArea: React.FC = () => {
     if (mapMountedRef.current) return;
     mapMountedRef.current = true;
 
+    const planInitialSegment = async (seg: typeof segments[number], opt: typeof seg.options[number]) => {
+      const waypoints = useTripStore.getState().customWaypoints[seg.id] || [];
+      const initialPreference = useTripStore.getState().preference;
+      const res = await amapService.planSegment(seg, opt, waypoints, initialPreference);
+      const latest = useTripStore.getState();
+      const latestSeg = latest.segments.find((item) => item.id === seg.id);
+      const sameEndpoints = latestSeg?.customStartCoord?.join(',') === seg.customStartCoord?.join(',')
+        && latestSeg?.customEndCoord?.join(',') === seg.customEndCoord?.join(',');
+      if (latestSeg && sameEndpoints
+        && (latest.customWaypoints[seg.id] || []).map((stop) => stop.id).join('|') === waypoints.map((stop) => stop.id).join('|')
+        && latest.preference === initialPreference) {
+        latest.setRouteResult(`${seg.id}:${opt.id}`, res);
+      }
+    };
+
     amapService.initMap('amap-root').then(async () => {
       // 1. 优先算路当前激活路段（默认 s6 丹江口），确保用户第一屏立刻呈现
       const activeSeg = segments.find((s) => s.id === activeSegmentId) || segments[0];
       const activeChosenOpt = activeSeg.options.find((o) => o.id === activeSeg.chosen) || activeSeg.options[0];
       try {
-        const res = await amapService.planSegment(
-          activeSeg,
-          activeChosenOpt,
-          customWaypoints[activeSeg.id] || [],
-          preference
-        );
-        setRouteResult(`${activeSeg.id}:${activeChosenOpt.id}`, res);
+        await planInitialSegment(activeSeg, activeChosenOpt);
       } catch (err) {
         console.warn(`初始路段 ${activeSeg.id} 算路重试中:`, err);
       }
@@ -70,13 +79,7 @@ export const CenterMapArea: React.FC = () => {
           if (opt.id !== activeChosenOpt.id) {
             await new Promise((r) => setTimeout(r, 150));
             try {
-              const res = await amapService.planSegment(
-                activeSeg,
-                opt,
-                customWaypoints[activeSeg.id] || [],
-                preference
-              );
-              setRouteResult(`${activeSeg.id}:${opt.id}`, res);
+              await planInitialSegment(activeSeg, opt);
             } catch {}
           }
         }
@@ -88,13 +91,7 @@ export const CenterMapArea: React.FC = () => {
         await new Promise((r) => setTimeout(r, 150));
         const chosenOpt = seg.options.find((o) => o.id === seg.chosen) || seg.options[0];
         try {
-          const res = await amapService.planSegment(
-            seg,
-            chosenOpt,
-            customWaypoints[seg.id] || [],
-            preference
-          );
-          setRouteResult(`${seg.id}:${chosenOpt.id}`, res);
+          await planInitialSegment(seg, chosenOpt);
         } catch (err) {
           console.warn(`路段 ${seg.id} 算路失败:`, err);
         }
@@ -201,8 +198,12 @@ export const CenterMapArea: React.FC = () => {
             .planSegment(targetSeg, opt, nextWaypoints, state.preference)
             .then((res) => {
               const latest = useTripStore.getState();
+              const latestSeg = latest.segments.find((seg) => seg.id === targetSeg.id);
+              const sameEndpoints = latestSeg?.customStartCoord?.join(',') === targetSeg.customStartCoord?.join(',')
+                && latestSeg?.customEndCoord?.join(',') === targetSeg.customEndCoord?.join(',');
               const ids = (latest.customWaypoints[targetSeg.id] || []).map((stop) => stop.id);
               if (ids.join('|') === nextWaypoints.map((stop) => stop.id).join('|')
+                && latestSeg && sameEndpoints
                 && (latest.selectedOptions[targetSeg.id] || targetSeg.chosen) === opt.id
                 && latest.preference === state.preference) {
                 latest.setRouteResult(`${targetSeg.id}:${opt.id}`, res);

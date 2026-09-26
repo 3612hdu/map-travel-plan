@@ -68,11 +68,11 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ poi, isSelected, onS
     if (!targetSeg) return;
     const state = useTripStore.getState();
     const currentWaypoints = state.customWaypoints[targetSeg.id] || [];
-    const alreadyAdded = currentWaypoints.some((stop) => stop.id === poi.id || stop.name === poi.name);
+    const existingStop = currentWaypoints.find((stop) => stop.id === poi.id || stop.name === poi.name);
     let nextWaypoints = currentWaypoints;
-    if (alreadyAdded) {
-      removeWaypoint(targetSeg.id, poi.id);
-      nextWaypoints = currentWaypoints.filter((stop) => stop.id !== poi.id && stop.name !== poi.name);
+    if (existingStop) {
+      removeWaypoint(targetSeg.id, existingStop.id);
+      nextWaypoints = currentWaypoints.filter((stop) => stop.id !== existingStop.id);
     } else {
       const detectedCity = poi.address.match(/(.+?[市区县])/)?.[1] || targetSeg.title.split('→')[1]?.trim() || '湖北';
       const stop = {
@@ -92,7 +92,11 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ poi, isSelected, onS
     amapService.planSegment(targetSeg, opt, nextWaypoints, state.preference)
       .then((res) => {
         const latest = useTripStore.getState();
+        const latestSeg = latest.segments.find((seg) => seg.id === targetSeg.id);
+        const sameEndpoints = latestSeg?.customStartCoord?.join(',') === targetSeg.customStartCoord?.join(',')
+          && latestSeg?.customEndCoord?.join(',') === targetSeg.customEndCoord?.join(',');
         if ((latest.customWaypoints[targetSeg.id] || []).map((stop) => stop.id).join('|') === waypointIds
+          && latestSeg && sameEndpoints
           && (latest.selectedOptions[targetSeg.id] || targetSeg.chosen) === opt.id
           && latest.preference === state.preference) {
           latest.setRouteResult(`${targetSeg.id}:${opt.id}`, res);

@@ -13,4 +13,5 @@ export interface RouteCalcResult {
   time: number; // 秒
   tolls: number; // 元
   roads: string[];
+  orderedWaypointIds?: string[]; // 实际传给 Driving 的控制点顺序，供路线完整性核验
 }

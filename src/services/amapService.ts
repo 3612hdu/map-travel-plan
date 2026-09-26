@@ -2,9 +2,10 @@ import AMapLoader from '@amap/amap-jsapi-loader';
 import { AMAP_CONFIG, initAMapSecurity } from '../config/amap';
 import { Stop, Segment, RouteOption, OvernightStop } from '../types/trip';
 import { RoutePoi, RealDetourResult } from '../types/poi';
-import { RouteCalcResult } from '../types/map';
+import { MapMode, RouteCalcResult } from '../types/map';
 import { verifiedStops } from '../data/stops';
 import { RoutePreference, DEFAULT_PREFERENCE, mapPreferenceToAMapPolicy } from '../types/preference';
+import { orderPointsAlongRoute } from '../utils/geo';
 
 // 高德地图单例服务管理
 class AMapService {
@@ -84,6 +85,7 @@ class AMapService {
       center: [112.9, 31.75], // 湖北中北部（黄冈至郧阳走廊中心）
       mapStyle: 'amap://styles/normal'
     });
+    if (import.meta.env.DEV) (window as any).__amapService = this;
 
     // 创建实时路况图层
     this.trafficLayer = new api.TileLayer.Traffic({
@@ -147,10 +149,21 @@ class AMapService {
     const startCoord = segment.customStartCoord || startStop?.coord;
     const endCoord = segment.customEndCoord || endStop?.coord;
 
-    // 合并方案固有途经点与用户自定义添加的停靠点
-    const defaultWaypoints = option.via.map((idx) => verifiedStops[idx].coord);
-    const customCoords = customWaypoints.map((w) => w.coord);
-    const waypoints = [...defaultWaypoints, ...customCoords];
+    const scenicPoints = option.via.map((idx) => ({ id: `scenic:${idx}`, coord: verifiedStops[idx].coord }));
+    const customPoints = customWaypoints.map((stop) => ({ id: stop.id, coord: stop.coord }));
+    // 排序参考路线必须是当前方案的真实实路，而非直线或用户点击顺序。
+    // 无自定义点的递归调用会直接规划原方案，且由 routeCache/inFlightPlans 复用。
+    const referencePath = customPoints.length > 0
+      ? (await this.planSegment(segment, option, [], preference, maxRetries)).path
+      : null;
+    if (referencePath && referencePath.length < 2) {
+      throw new Error('当前方案缺少可用于停靠点排序的真实路线');
+    }
+    const orderedPoints = referencePath
+      ? orderPointsAlongRoute([...scenicPoints, ...customPoints], referencePath)
+      : scenicPoints;
+    const waypoints = orderedPoints.map((point) => point.coord);
+    const orderedWaypointIds = orderedPoints.map((point) => point.id);
     const aMapPolicy = mapPreferenceToAMapPolicy(preference);
 
     // 构建算路全局唯一缓存 Key
@@ -216,7 +229,8 @@ class AMapService {
                 distance: Number(route.distance) || 0,
                 time: Number(route.time) || 0,
                 tolls: route.tolls != null ? Number(route.tolls) : 0,
-                roads
+                roads,
+                orderedWaypointIds
               };
 
               // 写入缓存
@@ -253,6 +267,7 @@ class AMapService {
     routeResults: Record<string, RouteCalcResult>,
     activeSegmentId: string,
     activeDay: number | 'all' = 'all',
+    mapMode: MapMode = 'segment-selected',
     overnightStop: OvernightStop | null = null
   ) {
     if (!this.map || !this.api) return;
@@ -272,8 +287,28 @@ class AMapService {
       const res = routeResults[key];
       if (!res || !res.path || res.path.length < 2) return;
 
-      const isActive = seg.id === activeSegmentId;
+      const isActive = seg.id === activeSegmentId && (mapMode === 'segment-selected' || mapMode === 'segment-focus');
       const isDayMatched = activeDay === 'all' || seg.day === activeDay;
+
+      const alternativePolylines: any[] = [];
+      if (mapMode === 'segment-focus' && seg.id === activeSegmentId) {
+        for (const option of seg.options) {
+          if (option.id === optId) continue;
+          const alternative = routeResults[`${seg.id}:${option.id}`];
+          if (!alternative?.path || alternative.path.length < 2) continue;
+          const alternativePolyline = new this.api.Polyline({
+            path: alternative.path,
+            strokeColor: option.id === 'direct' ? '#64748b' : option.id === 'scenic' ? '#059669' : '#d97706',
+            strokeWeight: 4,
+            strokeOpacity: 0.8,
+            strokeStyle: 'dashed',
+            zIndex: 95,
+            cursor: 'pointer'
+          });
+          this.map.add(alternativePolyline);
+          alternativePolylines.push(alternativePolyline);
+        }
+      }
 
       // 颜色与透明度：根据 Day 聚焦与激活路段设定
       const color = isActive
@@ -282,8 +317,8 @@ class AMapService {
         ? '#ea580c'
         : '#059669';
 
-      const weight = isActive ? 9 : isDayMatched ? 5.5 : 3.5;
-      const opacity = isActive ? 0.95 : isDayMatched ? 0.75 : 0.22;
+      const weight = isActive ? 9 : mapMode === 'segment-focus' ? 2 : isDayMatched ? 5.5 : 3;
+      const opacity = isActive ? 0.95 : mapMode === 'segment-focus' ? 0.1 : mapMode === 'segment-selected' ? 0.2 : isDayMatched ? 0.75 : 0.18;
       const zIndex = isActive ? 90 : isDayMatched ? (seg.day === 1 ? 50 : 45) : 20;
 
       const polyline = new this.api.Polyline({
@@ -301,7 +336,7 @@ class AMapService {
       });
 
       this.map.add(polyline);
-      this.routeLayers.set(seg.id, [polyline]);
+      this.routeLayers.set(seg.id, [...alternativePolylines, polyline]);
       allPolylines.push(polyline);
 
       if (isActive) {
@@ -316,8 +351,8 @@ class AMapService {
   }
 
   // 聚焦到具体某一天的路线
-  fitToDay(day: number, segments: Segment[]) {
-    if (!this.map) return;
+  fitToDay(day: number, segments: Segment[]): boolean {
+    if (!this.map) return false;
     const daySegIds = segments.filter((s) => s.day === day).map((s) => s.id);
     const dayLayers: any[] = [];
     daySegIds.forEach((id) => {
@@ -326,7 +361,9 @@ class AMapService {
     });
     if (dayLayers.length > 0) {
       this.map.setFitView(dayLayers, false, [60, 60, 60, 60]);
+      return true;
     }
+    return false;
   }
 
   // 渲染 Overnight Stop 专属床图标 Marker
@@ -421,21 +458,25 @@ class AMapService {
   }
 
   // 聚焦到指定路段或全程
-  fitToSegment(activeSegmentId: string) {
-    if (!this.map) return;
+  fitToSegment(activeSegmentId: string): boolean {
+    if (!this.map) return false;
     const layers = this.routeLayers.get(activeSegmentId);
     if (layers && layers.length > 0) {
       this.map.setFitView(layers, false, [60, 60, 60, 60]);
+      return true;
     }
+    return false;
   }
 
-  fitToAll() {
-    if (!this.map) return;
+  fitToAll(): boolean {
+    if (!this.map) return false;
     const allLayers: any[] = [];
     this.routeLayers.forEach((layers) => allLayers.push(...layers));
     if (allLayers.length > 0) {
       this.map.setFitView(allLayers, false, [50, 50, 50, 50]);
+      return true;
     }
+    return false;
   }
 
   // 清空沿线设施 Markers

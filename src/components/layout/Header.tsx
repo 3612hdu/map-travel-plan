@@ -37,6 +37,9 @@ export const Header: React.FC = () => {
       : '计算中…';
 
   const displayToll = totalDistanceMeters > 0 ? `¥${totalTolls.toFixed(0)}` : '¥0';
+  const scenicSeg = segments.find((seg) => seg.id === 's6');
+  const scenicOptId = scenicSeg ? (selectedOptions[scenicSeg.id] || scenicSeg.chosen) : '';
+  const scenicRes = scenicSeg ? routeResults[`${scenicSeg.id}:${scenicOptId}`] : undefined;
 
   return (
     <header className="app-header">
@@ -77,7 +80,7 @@ export const Header: React.FC = () => {
         </div>
         <div className="stat-item">
           <span className="stat-label">风景路段</span>
-          <span className="stat-val scenic-val">约 136 km</span>
+          <span className="stat-val scenic-val">{scenicRes ? `${(scenicRes.distance / 1000).toFixed(0)} km` : '计算中…'}</span>
         </div>
 
         <div className="header-banner-badge">

@@ -3,6 +3,7 @@ import { Trip, Segment, Stop, RouteOption, OvernightStop } from '../types/trip';
 import { RoutePoi, FacilityCategory } from '../types/poi';
 import { VideoReference } from '../types/video';
 import { RouteCalcResult } from '../types/map';
+import { MapMode } from '../types/map';
 import { initialSegments, tripMeta } from '../data/tripData';
 import { initialFacilities } from '../data/mockAmenities';
 import { initialVideos } from '../data/videoData';
@@ -57,6 +58,8 @@ interface TripStore {
   segments: Segment[];
   activeDay: number | 'all';
   activeSegmentId: string;
+  mapMode: MapMode;
+  viewportRevision: number;
   selectedOptions: Record<string, string>; // segmentId -> optionId
   customWaypoints: Record<string, Stop[]>; // segmentId -> Stop[]
 
@@ -103,6 +106,8 @@ interface TripStore {
   // Actions
   setActiveDay: (day: number | 'all') => void;
   setActiveSegment: (id: string) => void;
+  enterSegmentDetail: (id?: string) => void;
+  exitSegmentDetail: () => void;
   selectRouteOption: (segmentId: string, optionId: string) => void;
   addWaypoint: (segmentId: string, stop: Stop) => void;
   removeWaypoint: (segmentId: string, stopId: string) => void;
@@ -137,6 +142,8 @@ export const useTripStore = create<TripStore>((set, get) => {
     segments: initialSegments,
     activeDay: 2, // 默认进入 Day 2 聚焦经典丹江口段
     activeSegmentId: 's6', // 默认选中经典段 s6 丹江口 → 郧阳
+    mapMode: 'segment-selected',
+    viewportRevision: 0,
     selectedOptions: initialOptions,
     customWaypoints: {},
 
@@ -274,31 +281,51 @@ export const useTripStore = create<TripStore>((set, get) => {
       });
     },
 
-    setActiveDay: (day) => {
-      set({ activeDay: day });
-      // 如果切到具体 day，自动将当前激活段切到该 day 的第一段
-      if (day !== 'all') {
-        const seg = get().segments.find((s) => s.day === day);
-        if (seg) {
-          set({ activeSegmentId: seg.id });
-        }
-      }
-    },
+    setActiveDay: (day) => set((state) => {
+      const firstSeg = day === 'all' ? null : state.segments.find((s) => s.day === day);
+      return {
+        activeDay: day,
+        activeSegmentId: firstSeg?.id || state.activeSegmentId,
+        mapMode: day === 'all' ? 'trip-overview' : 'day-overview',
+        viewportRevision: state.viewportRevision + 1
+      };
+    }),
 
-    setActiveSegment: (id) => {
-      const seg = get().segments.find((s) => s.id === id);
-      set({
+    setActiveSegment: (id) => set((state) => {
+      const seg = state.segments.find((s) => s.id === id);
+      return {
         activeSegmentId: id,
-        activeDay: seg ? seg.day : get().activeDay
-      });
-    },
+        activeDay: seg ? seg.day : state.activeDay,
+        mapMode: state.mapMode === 'segment-focus' ? 'segment-focus' : 'segment-selected',
+        viewportRevision: state.viewportRevision + 1
+      };
+    }),
+
+    enterSegmentDetail: (id) => set((state) => {
+      const seg = state.segments.find((s) => s.id === (id || state.activeSegmentId));
+      if (!seg) return state;
+      return {
+        activeSegmentId: seg.id,
+        activeDay: seg.day,
+        mapMode: 'segment-focus',
+        searchScope: 'segment',
+        viewportRevision: state.viewportRevision + 1
+      };
+    }),
+
+    exitSegmentDetail: () => set((state) => ({
+      activeDay: 'all',
+      mapMode: 'trip-overview',
+      viewportRevision: state.viewportRevision + 1
+    })),
 
     selectRouteOption: (segmentId, optionId) => {
       set((state) => ({
         selectedOptions: {
           ...state.selectedOptions,
           [segmentId]: optionId
-        }
+        },
+        viewportRevision: state.viewportRevision + 1
       }));
     },
 

@@ -64,20 +64,13 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ poi, isSelected, onS
   const handleToggleWaypoint = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!targetSeg) return;
-
-    if (isAlreadyAdded) {
+    const state = useTripStore.getState();
+    const currentWaypoints = state.customWaypoints[targetSeg.id] || [];
+    const alreadyAdded = currentWaypoints.some((stop) => stop.id === poi.id || stop.name === poi.name);
+    let nextWaypoints = currentWaypoints;
+    if (alreadyAdded) {
       removeWaypoint(targetSeg.id, poi.id);
-      const remainingWaypoints = waypoints.filter((w) => w.id !== poi.id && w.name !== poi.name);
-      const opt =
-        targetSeg.options.find(
-          (o) => o.id === (selectedOptions[targetSeg.id] || targetSeg.chosen)
-        ) || targetSeg.options[0];
-
-      amapService
-        .planSegment(targetSeg, opt, remainingWaypoints, preference)
-        .then((res) => {
-          setRouteResult(`${targetSeg.id}:${opt.id}`, res);
-        });
+      nextWaypoints = currentWaypoints.filter((stop) => stop.id !== poi.id && stop.name !== poi.name);
     } else {
       const detectedCity = poi.address.match(/(.+?[市区县])/)?.[1] || targetSeg.title.split('→')[1]?.trim() || '湖北';
       const stop = {
@@ -89,19 +82,21 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ poi, isSelected, onS
         address: poi.address
       };
       addWaypoint(targetSeg.id, stop);
-
-      // 重新触发高德实时算路
-      const opt =
-        targetSeg.options.find(
-          (o) => o.id === (selectedOptions[targetSeg.id] || targetSeg.chosen)
-        ) || targetSeg.options[0];
-
-      amapService
-        .planSegment(targetSeg, opt, [...waypoints, stop], preference)
-        .then((res) => {
-          setRouteResult(`${targetSeg.id}:${opt.id}`, res);
-        });
+      nextWaypoints = [...currentWaypoints, stop];
     }
+    const opt = targetSeg.options.find((option) => option.id === (state.selectedOptions[targetSeg.id] || targetSeg.chosen))
+      || targetSeg.options[0];
+    const waypointIds = nextWaypoints.map((stop) => stop.id).join('|');
+    amapService.planSegment(targetSeg, opt, nextWaypoints, state.preference)
+      .then((res) => {
+        const latest = useTripStore.getState();
+        if ((latest.customWaypoints[targetSeg.id] || []).map((stop) => stop.id).join('|') === waypointIds
+          && (latest.selectedOptions[targetSeg.id] || targetSeg.chosen) === opt.id
+          && latest.preference === state.preference) {
+          latest.setRouteResult(`${targetSeg.id}:${opt.id}`, res);
+        }
+      })
+      .catch((error) => console.warn('停靠点重算失败:', error));
   };
 
   // 按需真实高德 Driving 绕行测算 (当前路线 -> POI -> 回路线)

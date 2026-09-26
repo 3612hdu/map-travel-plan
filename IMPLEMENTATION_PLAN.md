@@ -7,6 +7,14 @@
 
 ---
 
+## Core Fix Sprint 1 完成记录（2026-09-26）
+
+本轮只修复审计 Top 1～3，不扩展新 Phase。路线服务先获取当前 RouteOption 的真实基准 Polyline，将 scenic via 和 customWaypoints 投影得到 `distanceAlongRouteMeters`，按进度排序后传给 Driving；双停靠点反向加入与近线酒店重算已在真实浏览器验证。`s6` 折中方案改为仅经习家店 `[10]`，与完整环库 `[9,10,11]` 的实测里程差约 4.7 km；新增距离、耗时、几何和道路序列比较，重合时在 UI 提示。Store 的 `MapMode` 与 `viewportRevision` 给地图自动 fit 单一所有者，优先级为 `segment-focus > segment-selected > day-overview > trip-overview`；Detail 内右栏和搜索默认按当前段。
+
+验收：`npm run build`、`test-core-fix-1.mjs` 及 D.1/D/C.1/C/总验收均通过；六张截图见 `docs/core-fix-1/`。`CORE_FEATURE_AUDIT.md` 更新为 **26 COMPLETE / 13 PARTIAL / 0 MISSING**。下方历史计划中的固定里程、阶段验收数字与旧缺口仅作当时记录，以此节和当前审计为准。
+
+---
+
 ## 0. 会话交接与最新代码审计 (2026-09-26 重新审计)
 
 ### 0.1 真实可运行状态与检查清单

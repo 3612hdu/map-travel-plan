@@ -448,6 +448,29 @@ input {
   background: #e2e8f0;
 }
 
+.center-map-area.detail-mode .map-canvas-container {
+  min-height: 350px;
+}
+
+.map-detail-status {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  color: #1e3a8a;
+  background: rgba(239, 246, 255, 0.96);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  font-size: 11px;
+}
+
+.map-detail-status strong { font-size: 12px; }
+
 /* 地图视图容器 */
 .map-canvas-container {
   flex: 1;
@@ -591,6 +614,21 @@ input {
   margin-bottom: 12px;
 }
 
+.segment-header-actions { display: flex; align-items: center; gap: 8px; }
+
+.segment-detail-action {
+  padding: 7px 12px;
+  border: 1px solid #93c5fd;
+  border-radius: 9px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.segment-detail-action:hover { background: #dbeafe; }
+
 .segment-name-highlight {
   font-size: 16px;
   font-weight: 800;
@@ -654,6 +692,16 @@ input {
 .route-option-card.recommended-card.chosen {
   border-color: var(--scenic);
   box-shadow: 0 4px 16px rgba(5, 150, 105, 0.15);
+}
+
+.option-overlap-warning {
+  margin: 8px 0 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .option-head {
@@ -850,6 +898,17 @@ input {
   gap: 8px;
   background: #f8fafc;
 }
+
+.right-panel-detail-context {
+  padding: 7px 12px;
+  border-bottom: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.video-empty-state { padding: 28px 16px; text-align: center; color: #64748b; font-size: 12px; }
 
 .panel-tab-btn {
   flex: 1;

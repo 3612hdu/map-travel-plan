@@ -4,12 +4,12 @@ import { useTripStore } from '../../store/useTripStore';
 import { amapService } from '../../services/amapService';
 
 export const RouteHighlights: React.FC = () => {
-  const { segments, activeSegmentId } = useTripStore();
+  const { segments, activeSegmentId, selectedOptions } = useTripStore();
   const currentSeg = segments.find((s) => s.id === activeSegmentId);
 
   // 获取当前所选 RouteOption 的亮点
-  const activeOpt =
-    currentSeg?.options.find((o) => o.isRecommended) || currentSeg?.options[0];
+  const activeOpt = currentSeg?.options.find((o) => o.id === (selectedOptions[activeSegmentId] || currentSeg.chosen))
+    || currentSeg?.options[0];
   const highlights = activeOpt?.highlights || [];
 
   if (highlights.length === 0) return null;
@@ -26,7 +26,7 @@ export const RouteHighlights: React.FC = () => {
           <span>路线亮点</span>
         </div>
         <div className="highlights-sub">
-          凉水河 → 习家店为本段风景核心，连续临水视野，建议白天通过。沿途有多个观景停车点。
+          {activeOpt?.desc}
         </div>
       </div>
 

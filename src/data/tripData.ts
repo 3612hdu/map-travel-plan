@@ -183,7 +183,6 @@ export const initialSegments: Segment[] = [
         desc: '沿丹江口水库北岸行驶，连续临水视野，风景最佳，推荐白天通过。',
         via: [9, 10, 11], // 凉水河镇, 习家店镇, 安阳镇
         features: ['临水', '山景', '拍照', '慢生活'],
-        comparisonNote: '+31 km · +47 min',
         highlights: segment6Highlights
       },
       {
@@ -191,11 +190,10 @@ export const initialSegments: Segment[] = [
         name: '风景折中路线',
         tagTitle: '风景折中路线',
         isRecommended: false,
-        desc: '兼顾风景与用时，部分路段靠近水库适合大多数游客。',
-        via: [9, 10], // 凉水河镇, 习家店镇
-        features: ['兼顾时间', '部分临水', '适合赶时间'],
-        comparisonNote: '+16 km · +22 min',
-        highlights: segment6Highlights.slice(0, 2)
+        desc: '只保留习家店附近的库区风景段，之后按较直接道路前往郧阳。',
+        via: [10], // 只固定习家店；凉水河 + 习家店会与完整环库路线高度重合
+        features: ['习家店观景', '部分临水', '兼顾时间'],
+        highlights: segment6Highlights.slice(1, 3)
       }
     ]
   }

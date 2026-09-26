@@ -1,8 +1,18 @@
 # 可交互自驾路线规划器 V2 —— 会话交接文档 (HANDOFF.md)
 
 > **最后更新**：2026-09-26  
-> **基线状态**：Phase A / Phase B / Phase C / Phase C.1 / Phase D / Phase D.1 全数交付完成，所有自动化测试 100% 通过（基准 TEST 01～14 + Phase C 走廊验证 + Phase C.1 搜索可靠性专项验证 + Phase D 时间轴与住宿决策 8 项专项验证 + Phase D.1 行程模型泛化与完整性 8 项专项验证）。  
+> **当前状态**：上述各阶段交付完成；Core Fix Sprint 1 也已完成并通过本轮要求的全部构建和回归。下文旧阶段的固定里程、截图与服务地址是当时记录，当前结论以本节为准。
 > **使用说明**：后续所有开发会话优先读取本文件作为真实上下文基线，严禁推测或依赖历史记忆。
+
+---
+
+## Core Fix Sprint 1（2026-09-26）
+
+- **FIX 1：停靠点顺序**。`src/utils/geo.ts` 将 scenic via 与全部自定义停靠点投影到当前所选方案的真实 Polyline，并按累计路线进度排序后交给高德 Driving。`amapService.ts` 缓存无自定义点的参考路线；`FacilityCard.tsx` 等异步重算只接受当前点集与方案的结果。实测近线酒店新增约 2.7 km；反向加入两个酒店仍按真实路程行驶，scenic via 保留。
+- **FIX 2：方案差异**。`s6` 普通路线无 via，环库经 `[9,10,11]`，折中只经 `[10]`。`routeComparison.ts` 比较实测里程、耗时、几何与主要道路序列；高度重合时方案卡明确提示。环库与折中由原来约 1 m 差异变成约 4.7 km；Detail 地图同时画当前蓝色实线和备选彩色虚线，卡片及顶部只显示高德实测数字。
+- **FIX 3：稳定 Segment Detail**。Store 明确 `MapMode` 和 `viewportRevision`，中央“详细查看”进入 `segment-focus`，右栏与搜索默认聚焦当前段；“← 返回全程”恢复 Trip 视野。`CenterMapArea.tsx` 是自动 fit 的唯一调用点，设施、Marker、视频 Tab 和异步结果不会抢走视野。
+- **本轮验证**：`npm run build`、`node test-core-fix-1.mjs`、`node test-phase-d1.mjs`、`node test-phase-d.mjs`、`node test-phase-c1.mjs`、`node test-phase-c.mjs`、`node test-acceptance.mjs` 全部通过。六张真实浏览器截图在 `docs/core-fix-1/`。审计当前 **COMPLETE 26 / PARTIAL 13 / MISSING 0**。
+- **剩余缺口**：视频真实性与方案空间关联、POI 缺失评分/营业状态及分类准确性、住宿比较的预置数值、亮点与实路范围关联、三栏信息密度。Sprint 1 未处理这些问题。
 
 ---
 

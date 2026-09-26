@@ -129,6 +129,70 @@ export function pointToPolylineDistanceKm(
   return Number((minDistanceMeters / 1000).toFixed(1));
 }
 
+export interface RouteProjection {
+  distanceAlongRouteMeters: number;
+  distanceToRouteMeters: number;
+  segmentIndex: number;
+  fraction: number;
+}
+
+// 用同一条已规划路线给风景控制点与用户停靠点排序，避免追加的点造成回头路。
+export function projectPointOntoRoute(
+  point: [number, number],
+  path: [number, number][]
+): RouteProjection {
+  if (path.length < 2) {
+    return { distanceAlongRouteMeters: 0, distanceToRouteMeters: Infinity, segmentIndex: 0, fraction: 0 };
+  }
+
+  let traveled = 0;
+  let best: RouteProjection = {
+    distanceAlongRouteMeters: 0,
+    distanceToRouteMeters: Infinity,
+    segmentIndex: 0,
+    fraction: 0
+  };
+
+  for (let i = 0; i < path.length - 1; i++) {
+    const a = path[i];
+    const b = path[i + 1];
+    const segmentMeters = geoDistance(a, b);
+    if (segmentMeters === 0) continue;
+
+    const cosLat = Math.cos((point[1] * Math.PI) / 180);
+    const dx = (b[0] - a[0]) * cosLat;
+    const dy = b[1] - a[1];
+    const px = (point[0] - a[0]) * cosLat;
+    const py = point[1] - a[1];
+    const fraction = Math.max(0, Math.min(1, (px * dx + py * dy) / (dx * dx + dy * dy)));
+    const projection: [number, number] = [
+      a[0] + fraction * (b[0] - a[0]),
+      a[1] + fraction * (b[1] - a[1])
+    ];
+    const distanceToRouteMeters = geoDistance(point, projection);
+    if (distanceToRouteMeters < best.distanceToRouteMeters) {
+      best = {
+        distanceAlongRouteMeters: traveled + fraction * segmentMeters,
+        distanceToRouteMeters,
+        segmentIndex: i,
+        fraction
+      };
+    }
+    traveled += segmentMeters;
+  }
+  return best;
+}
+
+export function orderPointsAlongRoute<T extends { coord: [number, number] }>(
+  points: T[],
+  path: [number, number][]
+): Array<T & RouteProjection> {
+  return points
+    .map((point, index) => ({ ...point, ...projectPointOntoRoute(point.coord, path), originalIndex: index }))
+    .sort((a, b) => a.distanceAlongRouteMeters - b.distanceAlongRouteMeters || a.originalIndex - b.originalIndex)
+    .map(({ originalIndex: _originalIndex, ...point }) => point as T & RouteProjection);
+}
+
 /**
  * 根据垂直距离估算往返绕行增加里程 (km)
  * 重要语义声明：
@@ -150,4 +214,3 @@ export function classifyDetourGrade(
   if (distanceKm <= 6.0) return 'moderate';
   return 'deep';
 }
-

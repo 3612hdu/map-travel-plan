@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Calendar, Compass, Bookmark, Save, Share2, Star, Layers, Bed, Clock } from 'lucide-react';
 import { useTripStore } from '../../store/useTripStore';
-import { amapService } from '../../services/amapService';
 import { formatDuration } from '../../utils/geo';
 import { TripTimeline } from '../timeline/TripTimeline';
 
@@ -25,16 +24,10 @@ export const SidebarLeft: React.FC = () => {
 
   const handleSelectSegment = (segId: string) => {
     setActiveSegment(segId);
-    amapService.fitToSegment(segId);
   };
 
   const handleDayTabClick = (day: number | 'all') => {
     setActiveDay(day);
-    if (day === 'all') {
-      amapService.fitToAll();
-    } else {
-      amapService.fitToDay(day, segments);
-    }
   };
 
   const renderSegmentItem = (seg: any, globalIdx: number) => {
@@ -42,18 +35,8 @@ export const SidebarLeft: React.FC = () => {
     const optId = selectedOptions[seg.id] || seg.chosen;
     const res = routeResults[`${seg.id}:${optId}`];
 
-    // 默认或已算路距离
-    const distanceText = res
-      ? `${(res.distance / 1000).toFixed(0)} km`
-      : seg.id === 's6'
-      ? '136 km'
-      : '约 80 km';
-
-    const durationText = res
-      ? formatDuration(res.time)
-      : seg.id === 's6'
-      ? '3h08m'
-      : '约 2h';
+    const distanceText = res ? `${(res.distance / 1000).toFixed(0)} km` : '计算中…';
+    const durationText = res ? formatDuration(res.time) : '计算中…';
 
     const isStarSegment = seg.id === 's6';
 
@@ -72,7 +55,7 @@ export const SidebarLeft: React.FC = () => {
               {isStarSegment && <Star size={13} fill="#f59e0b" color="#f59e0b" />}
             </div>
             <div className="segment-stats">
-              约 {distanceText} · {durationText}
+              {distanceText} · {durationText}
             </div>
           </div>
         </div>
@@ -176,10 +159,14 @@ export const SidebarLeft: React.FC = () => {
 
           return uniqueDays.map((d) => {
             const daySegments = segments.filter((s) => s.day === d);
-            const totalKm = daySegments.reduce((sum, s) => {
+            const plannedDaySegments = daySegments.filter((s) => {
+              const optId = selectedOptions[s.id] || s.chosen;
+              return Boolean(routeResults[`${s.id}:${optId}`]);
+            });
+            const totalKm = plannedDaySegments.reduce((sum, s) => {
               const optId = selectedOptions[s.id] || s.chosen;
               const res = routeResults[`${s.id}:${optId}`];
-              return sum + (res ? res.distance / 1000 : s.id === 's6' ? 136 : 80);
+              return sum + (res ? res.distance / 1000 : 0);
             }, 0);
 
             return (
@@ -187,7 +174,7 @@ export const SidebarLeft: React.FC = () => {
                 <div className={`day-block-header ${activeDay === d ? 'active-day-block' : ''}`}>
                   <div className="day-badge-title">
                     <span className="day-tag">DAY {d}</span>
-                    <span className="day-meta-text">{daySegments.length}段 · 约 {Math.round(totalKm)} km</span>
+                    <span className="day-meta-text">{daySegments.length}段 · {plannedDaySegments.length === daySegments.length ? `${Math.round(totalKm)} km` : `已规划 ${plannedDaySegments.length}/${daySegments.length} 段`}</span>
                   </div>
                 </div>
                 {daySegments.map((seg) => renderSegmentItem(seg, globalCounter++))}
@@ -277,4 +264,3 @@ export const SidebarLeft: React.FC = () => {
     </aside>
   );
 };
-

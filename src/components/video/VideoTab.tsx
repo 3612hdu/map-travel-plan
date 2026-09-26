@@ -6,7 +6,7 @@ import { amapService } from '../../services/amapService';
 import { VideoModal } from './VideoModal';
 
 export const VideoTab: React.FC = () => {
-  const { videos, activeSegmentId } = useTripStore();
+  const { videos, activeSegmentId, mapMode } = useTripStore();
   const [selectedPlatform, setSelectedPlatform] = useState<VideoPlatform>('all');
   const [activeModalVideo, setActiveModalVideo] = useState<VideoReference | null>(null);
 
@@ -14,7 +14,9 @@ export const VideoTab: React.FC = () => {
   const currentSegVideos = videos.filter(
     (v) => v.segmentId === activeSegmentId || !v.segmentId
   );
-  const displaySource = currentSegVideos.length > 0 ? currentSegVideos : videos;
+  const displaySource = mapMode === 'segment-focus'
+    ? currentSegVideos.filter((video) => video.segmentId === activeSegmentId)
+    : currentSegVideos.length > 0 ? currentSegVideos : videos;
 
   // 平台过滤
   const filteredVideos = displaySource.filter((v) => {
@@ -73,6 +75,9 @@ export const VideoTab: React.FC = () => {
       </div>
 
       <div className="video-content-wrapper">
+        {mapMode === 'segment-focus' && filteredVideos.length === 0 && (
+          <div className="video-empty-state">本段暂无关联视频</div>
+        )}
         <div className="video-notice-banner">
           <span>真实用户的实拍分享，帮你提前了解沿途风景与路况体验</span>
         </div>

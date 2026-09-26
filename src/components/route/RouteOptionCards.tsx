@@ -1,8 +1,9 @@
 import React from 'react';
-import { Check, Star, GitCompare, Edit3 } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { useTripStore } from '../../store/useTripStore';
 import { formatDuration } from '../../utils/geo';
 import { amapService } from '../../services/amapService';
+import { compareRouteResults } from '../../utils/routeComparison';
 
 export const RouteOptionCards: React.FC = () => {
   const {
@@ -41,16 +42,14 @@ export const RouteOptionCards: React.FC = () => {
             customWaypoints[currentSeg.id] || [],
             preference
           );
-          setRouteResult(resKey, res);
+          const latest = useTripStore.getState();
+          const sameWaypoints = (latest.customWaypoints[currentSeg.id] || []).map((stop) => stop.id).join('|')
+            === (customWaypoints[currentSeg.id] || []).map((stop) => stop.id).join('|');
+          if (sameWaypoints && latest.preference === preference) setRouteResult(resKey, res);
         } catch (e) {
           console.warn('方案算路失败:', e);
         }
       }
-    }
-    // 重新高亮路线并聚焦
-    const map = amapService.getMap();
-    if (map) {
-      amapService.fitToSegment(currentSeg.id);
     }
   };
 
@@ -63,24 +62,16 @@ export const RouteOptionCards: React.FC = () => {
 
         const isRecommend = opt.isRecommended;
 
-        // 里程与时间（优先使用高德实际算路值）
-        const kmText = calcRes
-          ? `${(calcRes.distance / 1000).toFixed(0)} km`
-          : opt.id === 'scenic'
-          ? '136 km'
-          : opt.id === 'compromise'
-          ? '121 km'
-          : '105 km';
-
-        const timeText = calcRes
-          ? formatDuration(calcRes.time)
-          : opt.id === 'scenic'
-          ? '3h08m'
-          : opt.id === 'compromise'
-          ? '2h43m'
-          : '2h21m';
-
-        const tollText = calcRes ? `¥${calcRes.tolls}` : '¥0';
+        const kmText = calcRes ? `${(calcRes.distance / 1000).toFixed(0)} km` : '计算中…';
+        const timeText = calcRes ? formatDuration(calcRes.time) : '计算中…';
+        const tollText = calcRes ? `¥${calcRes.tolls}` : '计算中…';
+        const overlappingOptions = calcRes
+          ? currentSeg.options.filter((other) => {
+              if (other.id === opt.id) return false;
+              const otherRes = routeResults[`${currentSeg.id}:${other.id}`];
+              return otherRes && compareRouteResults(calcRes, otherRes).basicallySame;
+            })
+          : [];
 
         // 真实动态计算相对基准路线的增量（不再机械硬编码）
         let deltaText = '';
@@ -91,8 +82,6 @@ export const RouteOptionCards: React.FC = () => {
             const kmSign = kmDelta >= 0 ? '+' : '';
             const timeSign = timeDeltaMin >= 0 ? '+' : '';
             deltaText = `${kmSign}${kmDelta.toFixed(0)} km · ${timeSign}${timeDeltaMin} min`;
-          } else if (opt.comparisonNote) {
-            deltaText = opt.comparisonNote;
           }
         }
 
@@ -131,6 +120,9 @@ export const RouteOptionCards: React.FC = () => {
               </div>
 
               <p className="option-desc">{opt.desc}</p>
+              {overlappingOptions.length > 0 && (
+                <p className="option-overlap-warning">当前与「{overlappingOptions.map((other) => other.name).join('、')}」的实际道路基本一致，请按里程与耗时选择。</p>
+              )}
             </div>
 
             <div className="option-actions">

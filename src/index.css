@@ -985,6 +985,26 @@ input {
   gap: 10px;
 }
 
+.facilities-tab-content {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.facilities-tab-content .category-filter-bar,
+.facilities-tab-content .facility-results-summary {
+  flex: 0 0 auto;
+}
+
+.facilities-tab-content .category-filter-bar .filter-pill {
+  flex: 0 0 auto;
+}
+
+.facilities-tab-content .facilities-scroll-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .facility-card-item {
   background: #ffffff;
   border: 1.5px solid #e2e8f0;

@@ -95,6 +95,13 @@ class AMapService {
       center: [112.9, 31.75], // 湖北中北部（黄冈至郧阳走廊中心）
       mapStyle: 'amap://styles/normal'
     });
+    // 算路完成前也先展示整段旅程，避免首屏停在单个路段附近。
+    const longitudes = verifiedStops.map((stop) => stop.coord[0]);
+    const latitudes = verifiedStops.map((stop) => stop.coord[1]);
+    this.map.setBounds(new api.Bounds(
+      [Math.min(...longitudes) - 0.2, Math.min(...latitudes) - 0.2],
+      [Math.max(...longitudes) + 0.2, Math.max(...latitudes) + 0.2]
+    ));
     if (import.meta.env.DEV) (window as any).__amapService = this;
 
     // 创建实时路况图层

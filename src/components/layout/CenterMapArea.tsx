@@ -64,7 +64,7 @@ export const CenterMapArea: React.FC = () => {
     };
 
     amapService.initMap('amap-root').then(async () => {
-      // 1. 优先算路当前激活路段（默认 s6 丹江口），确保用户第一屏立刻呈现
+      // 先计算当前路段，再补齐全程各段的选定路线，让总览尽快完整呈现。
       const activeSeg = segments.find((s) => s.id === activeSegmentId) || segments[0];
       const activeChosenOpt = activeSeg.options.find((o) => o.id === activeSeg.chosen) || activeSeg.options[0];
       try {
@@ -73,19 +73,7 @@ export const CenterMapArea: React.FC = () => {
         console.warn(`初始路段 ${activeSeg.id} 算路重试中:`, err);
       }
 
-      // 预先规划当前激活路段的备选方案（用于 3 卡对比）
-      if (activeSeg.options.length > 1) {
-        for (const opt of activeSeg.options) {
-          if (opt.id !== activeChosenOpt.id) {
-            await new Promise((r) => setTimeout(r, 150));
-            try {
-              await planInitialSegment(activeSeg, opt);
-            } catch {}
-          }
-        }
-      }
-
-      // 2. 依次平滑规划其他路段（间隔 150ms 规避高德 QPS 限制）
+      // 依次规划其他路段（间隔 150ms 规避高德 QPS 限制）。
       for (const seg of segments) {
         if (seg.id === activeSeg.id) continue;
         await new Promise((r) => setTimeout(r, 150));
@@ -94,6 +82,17 @@ export const CenterMapArea: React.FC = () => {
           await planInitialSegment(seg, chosenOpt);
         } catch (err) {
           console.warn(`路段 ${seg.id} 算路失败:`, err);
+        }
+      }
+
+      // 全程路线完成后再计算当前路段的备选方案（用于 3 卡对比）。
+      for (const opt of activeSeg.options) {
+        if (opt.id === activeChosenOpt.id) continue;
+        await new Promise((r) => setTimeout(r, 150));
+        try {
+          await planInitialSegment(activeSeg, opt);
+        } catch (err) {
+          console.warn(`备选路线 ${activeSeg.id}:${opt.id} 算路失败:`, err);
         }
       }
     });
@@ -265,7 +264,7 @@ export const CenterMapArea: React.FC = () => {
             <span>高德实路引擎</span>
           </div>
 
-          {currentSeg && (
+          {currentSeg && mapMode !== 'trip-overview' && (
             <div className="map-control-pill">
               <span>第{currentSeg.day}天: {currentSeg.title}</span>
             </div>

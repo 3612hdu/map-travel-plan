@@ -213,7 +213,7 @@ export const FacilityTab: React.FC = () => {
   };
 
   return (
-    <div className="right-tab-content">
+    <div className="right-tab-content facilities-tab-content">
       {/* 分类药丸过滤条 */}
       <div className="category-filter-bar">
         {categories.map((c) => (
@@ -232,6 +232,7 @@ export const FacilityTab: React.FC = () => {
 
       {/* 检索作用域与结果提示条 */}
       <div
+        className="facility-results-summary"
         style={{
           display: 'flex',
           alignItems: 'center',

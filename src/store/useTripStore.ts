@@ -106,9 +106,9 @@ export const useTripStore = create<TripStore>((set, get) => {
   return {
     trip: tripMeta,
     segments: initialSegments,
-    activeDay: 2, // 默认进入 Day 2 聚焦经典丹江口段
+    activeDay: 'all', // 默认展示全程路线
     activeSegmentId: 's6', // 默认选中经典段 s6 丹江口 → 郧阳
-    mapMode: 'segment-selected',
+    mapMode: 'trip-overview',
     viewportRevision: 0,
     activeHighlightId: null,
     selectedOptions: initialOptions,

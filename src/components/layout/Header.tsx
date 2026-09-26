@@ -60,7 +60,9 @@ export const Header: React.FC = () => {
       </div>
 
       {/* 顶部路线走廊搜索框 (对齐图 03) */}
-      <CorridorSearchBox />
+      <div className="header-search-container">
+        <CorridorSearchBox />
+      </div>
 
       {/* 右侧统计信息与真实状态 */}
       <div className="header-stats">

@@ -25,6 +25,9 @@ export const SidebarLeft: React.FC = () => {
 
   const handleSelectSegment = (segId: string) => {
     setActiveSegment(segId);
+    if (typeof window !== 'undefined' && window.innerWidth <= 1024) {
+      useTripStore.getState().setMobileActiveTab('map');
+    }
   };
 
   const handleDayTabClick = (day: number | 'all') => {

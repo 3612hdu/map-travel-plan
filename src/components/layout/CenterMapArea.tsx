@@ -259,7 +259,7 @@ export const CenterMapArea: React.FC = () => {
 
         {/* 地图左上角控制药丸 (对齐图 01, 02) */}
         <div className="map-floating-top-left">
-          <div className="map-control-pill">
+          <div className="map-control-pill map-pill-engine">
             <Navigation size={13} color="#1875ff" />
             <span>高德实路引擎</span>
           </div>

@@ -45,6 +45,8 @@ interface TripStore {
 
   // 共享面板状态
   activeContentTab: 'videos' | 'facilities';
+  mobileActiveTab: 'map' | 'trip' | 'media' | 'facilities';
+  setMobileActiveTab: (tab: 'map' | 'trip' | 'media' | 'facilities') => void;
 
   // 搜索与设施过滤
   searchQuery: string;
@@ -123,6 +125,7 @@ export const useTripStore = create<TripStore>((set, get) => {
     isRouting: false,
 
     activeContentTab: 'videos', // 默认视频状态（对应图1）
+    mobileActiveTab: 'map', // 移动端默认地图/方案视口
 
     searchQuery: '',
     searchVersion: 0,
@@ -340,6 +343,14 @@ export const useTripStore = create<TripStore>((set, get) => {
     },
 
     setActiveContentTab: (tab) => set({ activeContentTab: tab }),
+    setMobileActiveTab: (tab) => {
+      set({ mobileActiveTab: tab });
+      if (tab === 'media') {
+        set({ activeContentTab: 'videos' });
+      } else if (tab === 'facilities') {
+        set({ activeContentTab: 'facilities' });
+      }
+    },
     setSearchQuery: (query) =>
       set((state) => ({
         searchQuery: query,

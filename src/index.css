@@ -1338,31 +1338,392 @@ input {
   padding: 18px;
 }
 
-/* 响应式样式 */
-@media (max-width: 1080px) {
+/* 默认（桌面端）隐藏移动端专用元素 */
+.mobile-bottom-nav {
+  display: none;
+}
+
+/* ========================================================
+   移动端与小屏响应式适配 (<= 1024px)
+   ======================================================== */
+@media (max-width: 1024px) {
+  /* 顶部导航栏紧凑化 */
+  .app-header {
+    height: 52px;
+    padding: 0 12px;
+    gap: 8px;
+  }
+
+  .header-brand {
+    min-width: unset;
+    gap: 8px;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .brand-icon-wrapper {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  .brand-title {
+    font-size: 13.5px;
+    font-weight: 750;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .brand-badge {
+    font-size: 9px;
+    padding: 1px 4px;
+  }
+
+  .brand-sub {
+    display: none !important;
+  }
+
+  .header-search-container,
+  .search-corridor-wrapper {
+    display: none !important;
+  }
+
+  .header-stats {
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .header-stats .stat-item {
+    display: none !important;
+  }
+
+  #btn-header-nav-plan {
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+    border-radius: 8px !important;
+    white-space: nowrap;
+    gap: 4px !important;
+    flex-shrink: 0;
+  }
+
+  /* 主工作区由网格切换为全屏单面板视图模式 */
   .app-workspace {
-    grid-template-columns: 280px 1fr 340px;
+    display: flex !important;
+    flex-direction: column !important;
+    height: calc(100vh - 52px - 56px) !important;
+    position: relative !important;
+    overflow: hidden !important;
+    grid-template-columns: none !important;
+  }
+
+  /* 移动端视图切换联动 */
+  /* 1. 地图与方案视图 (Tab: map) */
+  .app-workspace.mobile-view-map .center-map-area {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    height: 100% !important;
+    flex: 1 !important;
+  }
+  .app-workspace.mobile-view-map .sidebar-left,
+  .app-workspace.mobile-view-map .right-panel-shared {
+    display: none !important;
+  }
+
+  /* 2. 行程分段视图 (Tab: trip) */
+  .app-workspace.mobile-view-trip .sidebar-left {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    height: 100% !important;
+    flex: 1 !important;
+    border-right: none !important;
+  }
+  .app-workspace.mobile-view-trip .center-map-area,
+  .app-workspace.mobile-view-trip .right-panel-shared {
+    display: none !important;
+  }
+
+  /* 3. 沿途影像视图 (Tab: media) */
+  .app-workspace.mobile-view-media .right-panel-shared {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    height: 100% !important;
+    flex: 1 !important;
+    border-left: none !important;
+  }
+  .app-workspace.mobile-view-media .sidebar-left,
+  .app-workspace.mobile-view-media .center-map-area {
+    display: none !important;
+  }
+
+  /* 4. 沿途设施视图 (Tab: facilities) */
+  .app-workspace.mobile-view-facilities .right-panel-shared {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    height: 100% !important;
+    flex: 1 !important;
+    border-left: none !important;
+  }
+  .app-workspace.mobile-view-facilities .sidebar-left,
+  .app-workspace.mobile-view-facilities .center-map-area {
+    display: none !important;
+  }
+
+  /* 移动端底部常驻导航栏 */
+  .mobile-bottom-nav {
+    display: flex !important;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    background: #ffffff;
+    border-top: 1px solid #e2e8f0;
+    z-index: 1000;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .mobile-nav-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    color: #64748b;
+    padding: 6px 0;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: color 0.15s, transform 0.1s;
+  }
+
+  .mobile-nav-btn:active {
+    transform: scale(0.95);
+  }
+
+  .mobile-nav-btn.active {
+    color: #1875ff;
+  }
+
+  .mobile-nav-label {
+    font-size: 10.5px;
+    font-weight: 650;
+    line-height: 1;
+  }
+
+  .mobile-nav-btn.active .mobile-nav-label {
+    font-weight: 800;
+  }
+
+  /* 地图与底部方案卡片在移动端的优化 */
+  .center-map-area {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .map-canvas-container {
+    flex: 1;
+    min-height: 180px;
+    position: relative;
+  }
+
+  .map-floating-top-left {
+    top: 8px;
+    left: 8px;
+    gap: 4px;
+    max-width: calc(100% - 130px);
+    flex-wrap: wrap;
+  }
+
+  .map-control-pill {
+    padding: 4px 8px;
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .map-floating-top-right {
+    top: 8px;
+    right: 8px;
+  }
+
+  .map-pill-engine {
+    display: none !important;
+  }
+
+  .traffic-legend-card {
+    padding: 5px 8px;
+    font-size: 10px;
+  }
+
+  .traffic-legend-title {
+    gap: 6px;
+    margin-bottom: 0 !important;
+    font-size: 10.5px;
+  }
+
+  .traffic-legend-items {
+    display: none !important;
+  }
+
+  .center-bottom-panel {
+    max-height: 54vh;
+    overflow-y: auto;
+    padding: 10px 12px 14px;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+    border-radius: 16px 16px 0 0;
+    border-top: 1px solid #e2e8f0;
+    background: #ffffff;
+    z-index: 20;
+    flex-shrink: 0;
+  }
+
+  .segment-active-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .segment-name-highlight {
+    font-size: 14.5px;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .segment-header-actions {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+  }
+
+  .segment-detail-action {
+    flex: 1;
+    text-align: center;
+    padding: 7px 10px;
+    font-size: 11.5px;
+  }
+
+  #btn-start-nav-plan {
+    flex: 1.5;
+    max-width: none !important;
+    justify-content: center;
+    padding: 7px 12px !important;
+    font-size: 11.5px !important;
+  }
+
+  /* 方案 3 卡在移动端横向滑动手势卡片组 (避免 3 列被严重挤扁) */
+  .route-options-grid {
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    gap: 10px;
+    padding: 4px 2px 10px;
+    margin-bottom: 8px;
+  }
+
+  .route-option-card {
+    flex: 0 0 250px !important;
+    min-width: 250px !important;
+    scroll-snap-align: start;
+    box-sizing: border-box;
+  }
+
+  /* 行程栏移动端全屏样式 */
+  .sidebar-left {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar-content-scroll {
+    padding: 10px 12px 20px;
+  }
+
+  .segment-card {
+    padding: 10px 12px;
+  }
+
+  .sidebar-footer-actions {
+    padding: 10px 12px;
+    gap: 8px;
+    background: #ffffff;
+    border-top: 1px solid #f1f5f9;
+  }
+
+  .btn-sidebar-action {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  /* 影像与设施栏移动端全屏样式 */
+  .right-panel-shared {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .right-tab-header {
+    padding: 8px 12px;
+  }
+
+  .category-filter-bar {
+    overflow-x: auto;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+    gap: 6px;
+  }
+
+  .category-pill {
+    flex-shrink: 0;
+    padding: 5px 10px;
+    font-size: 11.5px;
+  }
+
+  .video-list-scroll,
+  .facility-list-scroll {
+    padding: 10px 12px 20px;
+  }
+
+  .video-sub-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px;
+  }
+
+  /* 模态框移动端适配 */
+  .modal-overlay {
+    padding: 10px;
+  }
+
+  .modal-content-card {
+    width: 96vw !important;
+    max-width: 96vw !important;
+    max-height: 88vh !important;
+    border-radius: 14px !important;
+  }
+
+  .modal-header {
+    padding: 12px 14px;
+  }
+
+  .modal-body {
+    padding: 12px 14px;
+    overflow-y: auto;
   }
 }
 
-@media (max-width: 860px) {
-  .app-workspace {
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-    height: auto;
-  }
-  .sidebar-left {
-    height: auto;
-    border-right: none;
-    border-bottom: 1px solid var(--border-light);
-  }
-  .center-map-area {
-    height: 480px;
-    flex-shrink: 0;
-  }
-  .right-panel-shared {
-    height: auto;
-    border-left: none;
-  }
-}

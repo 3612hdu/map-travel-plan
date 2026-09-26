@@ -52,6 +52,7 @@ export const CenterMapArea: React.FC = () => {
       if (activeSeg.options.length > 1) {
         for (const opt of activeSeg.options) {
           if (opt.id !== activeChosenOpt.id) {
+            await new Promise((r) => setTimeout(r, 150));
             try {
               const res = await amapService.planSegment(
                 activeSeg,

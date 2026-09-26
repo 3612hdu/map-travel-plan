@@ -1,5 +1,5 @@
-import React from 'react';
-import { Bed, Fuel, Zap, UtensilsCrossed, Bath, SquareParking, Star, Plus, Check } from 'lucide-react';
+import React, { useState } from 'react';
+import { Bed, Fuel, Zap, UtensilsCrossed, Bath, SquareParking, Star, Plus, Check, Calculator } from 'lucide-react';
 import { RoutePoi } from '../../types/poi';
 import { useTripStore } from '../../store/useTripStore';
 import { amapService } from '../../services/amapService';
@@ -22,6 +22,13 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ poi, isSelected, onS
     setActiveSegment,
     preference
   } = useTripStore();
+
+  const [isCalculatingDetour, setIsCalculatingDetour] = useState(false);
+  const [realDetourInfo, setRealDetourInfo] = useState<{ km: number; durSec: number } | null>(
+    poi.isRealDetour && poi.realDetourKm != null
+      ? { km: poi.realDetourKm, durSec: poi.realDetourDurationSec || 0 }
+      : null
+  );
 
   const targetSegId = poi.sourceSegmentId || activeSegmentId;
   const targetSeg = segments.find((s) => s.id === targetSegId) || segments.find((s) => s.id === activeSegmentId);
@@ -91,6 +98,28 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ poi, isSelected, onS
     }
   };
 
+  // 按需真实高德 Driving 绕行测算 (当前路线 -> POI -> 回路线)
+  const handleCalculateRealDetour = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!targetSeg || isCalculatingDetour) return;
+    setIsCalculatingDetour(true);
+    try {
+      const opt =
+        targetSeg.options.find(
+          (o) => o.id === (selectedOptions[targetSeg.id] || targetSeg.chosen)
+        ) || targetSeg.options[0];
+      const res = await amapService.calculateRealDetour(poi, targetSeg, opt, waypoints, preference);
+      poi.isRealDetour = true;
+      poi.realDetourKm = res.realDetourKm;
+      poi.realDetourDurationSec = res.realDetourDurationSec;
+      setRealDetourInfo({ km: res.realDetourKm, durSec: res.realDetourDurationSec });
+    } catch (err) {
+      console.warn('真实绕行测算失败:', err);
+    } finally {
+      setIsCalculatingDetour(false);
+    }
+  };
+
   const handleCardClick = () => {
     onSelect();
     if (targetSeg && targetSeg.id !== activeSegmentId) {
@@ -148,10 +177,16 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ poi, isSelected, onS
           }}>
             距路线 {poi.distanceToRoute} km
           </div>
-          {poi.detourDistance != null && (
-            <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px', fontWeight: 600 }}>
-              预计绕行 +{poi.detourDistance} km
+          {realDetourInfo ? (
+            <div style={{ fontSize: '10px', color: '#059669', marginTop: '2px', fontWeight: 700 }}>
+              真实道路绕行 +{realDetourInfo.km} km ({Math.max(1, Math.round(realDetourInfo.durSec / 60))}分钟)
             </div>
+          ) : (
+            (poi.estimatedDetourKm != null || poi.detourDistance != null) && (
+              <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px', fontWeight: 600 }}>
+                预计绕行约 +{poi.estimatedDetourKm ?? poi.detourDistance} km
+              </div>
+            )
           )}
         </div>
       </div>
@@ -177,11 +212,16 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ poi, isSelected, onS
               ★ 极度顺路
             </span>
           )}
-          {(poi.tags || []).slice(0, 3).map((tag, idx) => (
-            <span key={idx} className="feature-pill">
-              {tag}
-            </span>
-          ))}
+          {(poi.tags || []).slice(0, 3).map((tag, idx) => {
+            const displayTag = tag.startsWith('绕行+')
+              ? `预计绕行约 +${poi.estimatedDetourKm ?? poi.detourDistance}km`
+              : tag;
+            return (
+              <span key={idx} className="feature-pill">
+                {displayTag}
+              </span>
+            );
+          })}
         </div>
 
         <div className="btn-group-facility">
@@ -203,6 +243,20 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ poi, isSelected, onS
               </span>
             )}
           </button>
+
+          {!realDetourInfo && (
+            <button
+              type="button"
+              className="btn-facility-action secondary"
+              onClick={handleCalculateRealDetour}
+              disabled={isCalculatingDetour}
+              title="按需调用真实高德Driving测算当前路线前往该POI的新增里程与耗时"
+              style={{ display: 'flex', alignItems: 'center', gap: '3px' }}
+            >
+              <Calculator size={11} />
+              <span>{isCalculatingDetour ? '测算中...' : '实路测算'}</span>
+            </button>
+          )}
 
           <a
             href={`https://uri.amap.com/marker?position=${poi.coord.join(',')}&name=${encodeURIComponent(poi.name)}`}

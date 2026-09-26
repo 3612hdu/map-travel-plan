@@ -11,6 +11,7 @@ export const initialFacilities: RoutePoi[] = [
     address: '丹江口市沿江路半岛生态区',
     distanceToRoute: 2.8,
     detourDistance: 1.2,
+    estimatedDetourKm: 1.2,
     rating: 4.6,
     reviewCount: 320,
     tags: ['免费停车', '近水库', '位置优越'],
@@ -27,6 +28,7 @@ export const initialFacilities: RoutePoi[] = [
     address: '丹江口市习家店镇水库北岸环库路',
     distanceToRoute: 1.8,
     detourDistance: 0.8,
+    estimatedDetourKm: 0.8,
     rating: 4.8,
     reviewCount: 126,
     tags: ['临水视野', '免费停车', '适合拍照'],
@@ -43,6 +45,7 @@ export const initialFacilities: RoutePoi[] = [
     address: '十堰市郧阳区安阳镇汉江绿谷旁',
     distanceToRoute: 3.5,
     detourDistance: 1.4,
+    estimatedDetourKm: 1.4,
     rating: 4.5,
     reviewCount: 203,
     tags: ['湖景房', '免费停车', '早餐丰盛'],
@@ -59,6 +62,7 @@ export const initialFacilities: RoutePoi[] = [
     address: '十堰市郧阳区汉江大道',
     distanceToRoute: 1.2,
     detourDistance: 0.5,
+    estimatedDetourKm: 0.5,
     rating: 4.4,
     reviewCount: 287,
     tags: ['江景房', '免费停车', '餐饮方便'],
@@ -76,6 +80,7 @@ export const initialFacilities: RoutePoi[] = [
     address: '中国石化 · 凉水河镇S337省道旁',
     distanceToRoute: 2.3,
     detourDistance: 0.4,
+    estimatedDetourKm: 0.4,
     tags: ['92#', '95#', '柴油'],
     status: '营业中',
     sourceSegmentId: 's6'
@@ -89,6 +94,7 @@ export const initialFacilities: RoutePoi[] = [
     address: '中国石化 · 安阳镇十字街口',
     distanceToRoute: 1.5,
     detourDistance: 0.3,
+    estimatedDetourKm: 0.3,
     tags: ['92#', '95#', '便利店'],
     status: '营业中',
     sourceSegmentId: 's6'
@@ -103,6 +109,7 @@ export const initialFacilities: RoutePoi[] = [
     address: '国家电网 · 习家店镇迎宾大道供电所旁',
     distanceToRoute: 1.8,
     detourDistance: 0.2,
+    estimatedDetourKm: 0.2,
     tags: ['快充 120kW', '慢充 7kW', '24小时开放'],
     status: '快充 4 / 慢充 2 · 空闲 3/4',
     sourceSegmentId: 's6'
@@ -116,6 +123,7 @@ export const initialFacilities: RoutePoi[] = [
     address: '特来电 · 凉水河镇客运站旁',
     distanceToRoute: 2.1,
     detourDistance: 0.5,
+    estimatedDetourKm: 0.5,
     tags: ['快充 60kW'],
     status: '空闲 2/2',
     sourceSegmentId: 's6'
@@ -130,6 +138,7 @@ export const initialFacilities: RoutePoi[] = [
     address: '习家店镇农家乐一条街',
     distanceToRoute: 1.6,
     detourDistance: 0.3,
+    estimatedDetourKm: 0.3,
     rating: 4.6,
     reviewCount: 95,
     tags: ['本地菜', '水库翘嘴白', '散养土鸡'],
@@ -147,6 +156,7 @@ export const initialFacilities: RoutePoi[] = [
     address: '习家店镇游客服务中心旁',
     distanceToRoute: 1.7,
     detourDistance: 0.1,
+    estimatedDetourKm: 0.1,
     tags: ['免费', '无障碍通道', '卫生清洁'],
     status: '全天开放',
     sourceSegmentId: 's6'
@@ -161,6 +171,7 @@ export const initialFacilities: RoutePoi[] = [
     address: '安阳镇 · 汉江观景台路侧安全港湾',
     distanceToRoute: 0.5,
     detourDistance: 0.0,
+    estimatedDetourKm: 0.0,
     tags: ['免费停车', '视野开阔', '适合拍照'],
     status: '车位 15 个',
     sourceSegmentId: 's6'

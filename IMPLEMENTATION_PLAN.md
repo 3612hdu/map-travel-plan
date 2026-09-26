@@ -496,12 +496,21 @@ export interface VideoReference {
 - [x] 接入高德实时交通图层（TrafficLayer）与右上角图例开关；
 - [x] 完成实际 Chrome 自动化测试并生成 6 张高清截图，输出 `ACCEPTANCE_REPORT.md`。
 
-### Phase C：沿路线走廊 POI 搜索系统
-- [ ] 编写点到折线垂距与抽样算法；
-- [ ] 接入高德 `AMap.PlaceSearch`；
-- [ ] 支持“全程”与“当前路段”双模式搜索；
-- [ ] 搜索结果去重、计算距路线 km、按顺路程度排序；
-- [ ] 地图渲染设施 Marker 与自定义图标。
+### Phase C：沿路线走廊 POI 搜索系统（已完成 ✅）
+- [x] 编写点到折线垂距与抽样算法（`sampleCenters`, `pointToPolylineDistanceKm`）；
+- [x] 接入高德 `AMap.PlaceSearch`；
+- [x] 支持“全程”与“当前路段”双模式搜索；
+- [x] 搜索结果去重、计算距路线 km、按顺路程度排序；
+- [x] 地图渲染设施 Marker 与自定义图标。
+
+### Phase C.1：POI 搜索可靠性与结果质量收口（已完成 ✅）
+- [x] 绕行距离语义纠正：明确几何估计命名为 `estimatedDetourKm`，统一文案为“预计绕行约 +X km”；预留真实测算接口 `calculateRealDetour` 并提供【实路测算】能力；
+- [x] 全局受控调度队列：严控并发上限 `MAX_SEARCH_CONCURRENCY = 2` 与任务延迟 `TASK_SPACING_MS = 40ms`，杜绝 QPS 溢出报错；
+- [x] 代际令牌与旧请求拦截：引入 `activeSearchGeneration`，快速连续换词时主动清理旧代际队列，旧任务直接丢弃绝不覆盖最新结果；
+- [x] 结果缓存与去重：短时间重复搜索复用内存缓存（5 分钟 TTL），在途请求复用 Promise；
+- [x] 综合相关度评分排序：综合垂距得分（0~50）、官方评分（0~30）、激活路段加权（0/15）、分类匹配（0/5）智能排序；
+- [x] 列表截取与分页交互：默认展示 Top 20 最相关地点，支持一键展开/收起；全程模式按 Day 与 Segment 层次结构分组呈现；
+- [x] 自动化专项回归测试：编写并通过 `test-phase-c1.mjs`，五项专项指标 100% PASS。
 
 ### Phase D：沿途设施深度交互与加入停靠点
 - [ ] 右侧设施面板分类切换（酒店/餐饮/油站/充电/厕所/停车）；

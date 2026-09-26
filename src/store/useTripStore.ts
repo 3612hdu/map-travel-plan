@@ -26,6 +26,7 @@ interface TripStore {
 
   // 搜索与设施过滤
   searchQuery: string;
+  searchVersion: number;
   searchScope: 'trip' | 'segment';
   selectedCategory: FacilityCategory;
   facilities: RoutePoi[];
@@ -89,6 +90,7 @@ export const useTripStore = create<TripStore>((set, get) => {
     activeContentTab: 'videos', // 默认视频状态（对应图1）
 
     searchQuery: '',
+    searchVersion: 0,
     searchScope: 'segment', // 默认当前路段（对应图3）
     selectedCategory: 'all',
     facilities: initialFacilities,
@@ -161,7 +163,11 @@ export const useTripStore = create<TripStore>((set, get) => {
     },
 
     setActiveContentTab: (tab) => set({ activeContentTab: tab }),
-    setSearchQuery: (query) => set({ searchQuery: query }),
+    setSearchQuery: (query) =>
+      set((state) => ({
+        searchQuery: query,
+        searchVersion: (state.searchVersion || 0) + 1
+      })),
     setSearchScope: (scope) => set({ searchScope: scope }),
     setSelectedCategory: (category) => set({ selectedCategory: category }),
     setFacilities: (facilities) => set({ facilities }),

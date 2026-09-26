@@ -129,7 +129,12 @@ export function pointToPolylineDistanceKm(
   return Number((minDistanceMeters / 1000).toFixed(1));
 }
 
-// 根据垂直距离估算往返绕行增加里程 (km)
+/**
+ * 根据垂直距离估算往返绕行增加里程 (km)
+ * 重要语义声明：
+ * 此函数为基于点到折线垂直距离的理论几何估算值（折返系数估算约 1.8 倍），
+ * 仅用于列表快速初筛与排序打分，绝非高德 Driving 实测真实道路绕行距离。
+ */
 export function estimateDetourKm(perpendicularDistanceKm: number): number {
   if (perpendicularDistanceKm <= 0.1) return 0.2;
   // 实际道路迂回系数约 1.8 ~ 2.0 倍垂距

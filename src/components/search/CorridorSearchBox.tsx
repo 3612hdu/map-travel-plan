@@ -16,9 +16,17 @@ export const CorridorSearchBox: React.FC = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [inputValue, setInputValue] = useState(searchQuery);
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSearchQuery(inputValue);
+  React.useEffect(() => {
+    setInputValue(searchQuery);
+  }, [searchQuery]);
+
+  const handleSearchSubmit = (e?: React.FormEvent) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const inputEl = document.querySelector<HTMLInputElement>('.search-input');
+    const domVal = inputEl?.value;
+    const finalVal = (domVal !== undefined && domVal !== '') ? domVal : inputValue;
+    setInputValue(finalVal);
+    setSearchQuery(finalVal);
     setActiveContentTab('facilities');
   };
 
@@ -53,6 +61,11 @@ export const CorridorSearchBox: React.FC = () => {
           placeholder="搜索沿途的酒店、民宿、餐厅、加油站、充电站、公厕..."
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.keyCode === 13 || e.which === 13) {
+              handleSearchSubmit(e as any);
+            }
+          }}
         />
         {inputValue && (
           <button

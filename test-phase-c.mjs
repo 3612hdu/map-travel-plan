@@ -14,7 +14,7 @@ async function runPhaseCTest() {
   const browser = await puppeteer.launch({
     executablePath: CHROME_PATH,
     headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security']
   });
 
   const page = await browser.newPage();
@@ -44,8 +44,11 @@ async function runPhaseCTest() {
     // 2. 验证当前路段搜索 "酒店"
     console.log('2. 测试当前路段搜索 "酒店"...');
     await page.click('.search-input');
-    await page.$eval('.search-input', (el) => (el.value = '酒店'));
-    await page.type('.search-input', String.fromCharCode(13)); // Enter
+    await page.$eval('.search-input', (el) => {
+      el.value = '酒店';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.keyboard.press('Enter');
     await sleep(2500);
 
     const segmentHotelCards = await page.$$eval('.facility-card-item', cards =>

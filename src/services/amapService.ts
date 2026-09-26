@@ -1,7 +1,7 @@
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { AMAP_CONFIG, initAMapSecurity } from '../config/amap';
 import { Stop, Segment, RouteOption } from '../types/trip';
-import { RoutePoi } from '../types/poi';
+import { RoutePoi, RealDetourResult } from '../types/poi';
 import { RouteCalcResult } from '../types/map';
 import { verifiedStops } from '../data/stops';
 import { RoutePreference, DEFAULT_PREFERENCE, mapPreferenceToAMapPolicy } from '../types/preference';
@@ -36,6 +36,7 @@ class AMapService {
         return api;
       })
       .catch((err) => {
+        this.loadPromise = null;
         console.error('高德 JS API 加载失败:', err);
         throw err;
       });
@@ -351,6 +352,52 @@ class AMapService {
     });
   }
 
+  // 预留真实绕行测算接口: 计算 当前路线 -> POI -> 返回路线后的真实新增距离和时间
+  async calculateRealDetour(
+    poi: RoutePoi,
+    segment: Segment,
+    option?: RouteOption,
+    customWaypoints: Stop[] = [],
+    preference: RoutePreference = DEFAULT_PREFERENCE
+  ): Promise<RealDetourResult> {
+    const opt = option || segment.options.find((o) => o.id === segment.chosen) || segment.options[0];
+
+    // 1. 基准路线规划 (不含该 POI)
+    const baseResult = await this.planSegment(segment, opt, customWaypoints, preference);
+
+    // 2. 插入 POI 后的新路线规划
+    const detectedCity =
+      poi.address.match(/(.+?[市区县])/)?.[1] || segment.title.split('→')[1]?.trim() || '湖北';
+    const poiStop: Stop = {
+      id: `detour-${poi.id}`,
+      name: poi.name,
+      coord: poi.coord,
+      poi: poi.poiId || '',
+      city: detectedCity,
+      address: poi.address
+    };
+
+    const newResult = await this.planSegment(segment, opt, [...customWaypoints, poiStop], preference);
+
+    const origDist = baseResult.distance;
+    const newDist = newResult.distance;
+    const origTime = baseResult.time;
+    const newTime = newResult.time;
+
+    const realDetourKm = Math.max(0, Number(((newDist - origDist) / 1000).toFixed(1)));
+    const realDetourDurationSec = Math.max(0, newTime - origTime);
+
+    return {
+      poiId: poi.id,
+      realDetourKm,
+      realDetourDurationSec,
+      originalDistanceMeters: origDist,
+      newDistanceMeters: newDist,
+      originalDurationSeconds: origTime,
+      newDurationSeconds: newTime
+    };
+  }
+
   // 打开 POI 详细气泡
   openPoiInfoWindow(poi: RoutePoi, onAddWaypoint?: (poi: RoutePoi) => void) {
     if (!this.map || !this.api || !this.infoWindow) return;
@@ -360,6 +407,14 @@ class AMapService {
         📍 归属路段: ${poi.sourceSegmentTitle}
       </div>
     ` : '';
+
+    const detourBadgeHtml = poi.isRealDetour && poi.realDetourKm != null
+      ? `<span style="background: #ecfdf5; color: #059669; font-weight: 700; padding: 2px 6px; border-radius: 4px;">
+           真实道路绕行 +${poi.realDetourKm} km${poi.realDetourDurationSec ? ` (${Math.round(poi.realDetourDurationSec / 60)}分钟)` : ''}
+         </span>`
+      : `<span style="background: #f8fafc; color: #475569; font-weight: 600; padding: 2px 6px; border-radius: 4px;">
+           预计绕行约 +${poi.estimatedDetourKm ?? poi.detourDistance ?? 0.5} km
+         </span>`;
 
     const html = `
       <div style="padding: 10px; font-family: system-ui, -apple-system, sans-serif; max-width: 270px;">
@@ -374,9 +429,7 @@ class AMapService {
           <span style="background: #ecfdf5; color: #059669; font-weight: 700; padding: 2px 6px; border-radius: 4px;">
             距路线 ${poi.distanceToRoute} km
           </span>
-          <span style="background: #f8fafc; color: #475569; font-weight: 600; padding: 2px 6px; border-radius: 4px;">
-            预计绕行 +${poi.detourDistance || 0.5} km
-          </span>
+          ${detourBadgeHtml}
           ${poi.rating ? `<span style="color: #f59e0b; font-weight: 700;">★ ${poi.rating}</span>` : ''}
         </div>
         <div style="display: flex; gap: 6px;">

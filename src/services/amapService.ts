@@ -5,7 +5,8 @@ import { RoutePoi, RealDetourResult } from '../types/poi';
 import { MapMode, RouteCalcResult } from '../types/map';
 import { verifiedStops } from '../data/stops';
 import { RoutePreference, DEFAULT_PREFERENCE, mapPreferenceToAMapPolicy } from '../types/preference';
-import { orderPointsAlongRoute } from '../utils/geo';
+import { orderPointsAlongRoute, sliceRouteByProgress } from '../utils/geo';
+import { bindHighlightsToRoute } from '../utils/routeHighlights';
 
 // 高德地图单例服务管理
 class AMapService {
@@ -14,6 +15,8 @@ class AMapService {
   private trafficLayer: any = null;
   private satelliteLayer: any = null;
   private routeLayers: Map<string, any[]> = new Map();
+  private highlightLayer: any = null;
+  private highlightedPath: [number, number][] = [];
   private markerLayers: any[] = [];
   private overnightMarker: any = null;
   private infoWindow: any = null;
@@ -268,7 +271,8 @@ class AMapService {
     activeSegmentId: string,
     activeDay: number | 'all' = 'all',
     mapMode: MapMode = 'segment-selected',
-    overnightStop: OvernightStop | null = null
+    overnightStop: OvernightStop | null = null,
+    activeHighlightId: string | null = null
   ) {
     if (!this.map || !this.api) return;
 
@@ -277,6 +281,9 @@ class AMapService {
       this.map.remove(layers);
     });
     this.routeLayers.clear();
+    if (this.highlightLayer) this.map.remove(this.highlightLayer);
+    this.highlightLayer = null;
+    this.highlightedPath = [];
 
     const allPolylines: any[] = [];
     const activePolylines: any[] = [];
@@ -318,7 +325,7 @@ class AMapService {
         : '#059669';
 
       const weight = isActive ? 9 : mapMode === 'segment-focus' ? 2 : isDayMatched ? 5.5 : 3;
-      const opacity = isActive ? 0.95 : mapMode === 'segment-focus' ? 0.1 : mapMode === 'segment-selected' ? 0.2 : isDayMatched ? 0.75 : 0.18;
+      const opacity = activeHighlightId ? 0.18 : isActive ? 0.95 : mapMode === 'segment-focus' ? 0.1 : mapMode === 'segment-selected' ? 0.2 : isDayMatched ? 0.75 : 0.18;
       const zIndex = isActive ? 90 : isDayMatched ? (seg.day === 1 ? 50 : 45) : 20;
 
       const polyline = new this.api.Polyline({
@@ -342,6 +349,20 @@ class AMapService {
       if (isActive) {
         activePolylines.push(polyline);
       }
+
+      if (seg.id === activeSegmentId && activeHighlightId) {
+        const option = seg.options.find((item) => item.id === optId);
+        const bound = bindHighlightsToRoute(option?.highlights || [], seg.id, optId, res.path)
+          .find((item) => item.id === activeHighlightId);
+        if (bound?.startProgress != null && bound.endProgress != null) {
+          const subsection = sliceRouteByProgress(res.path, bound.startProgress, bound.endProgress);
+          if (subsection.length >= 2) {
+            this.highlightedPath = subsection;
+            this.highlightLayer = new this.api.Polyline({ path: subsection, strokeColor: '#f97316', strokeWeight: 12, strokeOpacity: 1, isOutline: true, outlineColor: '#ffffff', borderWeight: 3, zIndex: 180 });
+            this.map.add(this.highlightLayer);
+          }
+        }
+      }
     });
 
     // 联动渲染住宿点专属标记
@@ -349,6 +370,14 @@ class AMapService {
 
     return { allPolylines, activePolylines };
   }
+
+  fitToHighlight(): boolean {
+    if (!this.map || !this.highlightLayer) return false;
+    this.map.setFitView([this.highlightLayer], false, [95, 95, 95, 95]);
+    return true;
+  }
+
+  getHighlightedPath() { return this.highlightedPath; }
 
   // 聚焦到具体某一天的路线
   fitToDay(day: number, segments: Segment[]): boolean {
@@ -403,7 +432,7 @@ class AMapService {
       <span style="font-size: 13.5px;">🛏</span>
       <span>今晚住宿 · ${overnightStop.name}</span>
       <span style="background: rgba(255,255,255,0.22); padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;">
-        ${overnightStop.todayEta || '今晚'}
+        今晚
       </span>
     `;
 
@@ -438,18 +467,12 @@ class AMapService {
         <div style="display: flex; flex-direction: column; gap: 5px; font-size: 11px; background: #f8fafc; padding: 8px; border-radius: 6px; margin-bottom: 8px; border: 1px solid #e2e8f0;">
           <div style="display: flex; justify-content: space-between;">
             <span style="color: #64748b;">今日驾驶:</span>
-            <strong style="color: #0f172a;">${overnightStop.todayDrivingKm || '约 200'} km · 预计 ${overnightStop.todayEta || '17:30'} 抵达</strong>
+            <strong style="color: #0f172a;">请在住宿比较中查看当前实路数据</strong>
           </div>
           <div style="display: flex; justify-content: space-between;">
             <span style="color: #64748b;">明日剩余:</span>
-            <strong style="color: #059669;">${overnightStop.tomorrowRemainingKm || '约 300'} km</strong>
+            <strong style="color: #059669;">以实路测算为准</strong>
           </div>
-          ${overnightStop.decisionLabel ? `
-            <div style="display: flex; justify-content: space-between; margin-top: 2px;">
-              <span style="color: #64748b;">节奏特性:</span>
-              <span style="color: #4338ca; font-weight: 700;">${overnightStop.decisionLabel}</span>
-            </div>
-          ` : ''}
         </div>
       </div>
     `;
@@ -642,7 +665,8 @@ class AMapService {
             距路线 ${poi.distanceToRoute} km
           </span>
           ${detourBadgeHtml}
-          ${poi.rating ? `<span style="color: #f59e0b; font-weight: 700;">★ ${poi.rating}</span>` : ''}
+          <span style="color: #f59e0b; font-weight: 700;">${poi.rating != null ? `★ ${poi.rating}` : '暂无评分'}</span>
+          <span>${poi.status || '营业状态未知'}</span>
         </div>
         <div style="display: flex; gap: 6px;">
           <button id="btn-info-add-waypoint" style="

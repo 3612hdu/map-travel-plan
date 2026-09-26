@@ -123,70 +123,29 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ poi, isSelected, onS
 
   const isHotel = poi.category === 'hotel' || poi.name.includes('酒店') || poi.name.includes('宾馆') || poi.name.includes('民宿');
 
+  const makeCandidate = (): OvernightStop => {
+    const detectedCity = poi.address.match(/(.+?[市区县])/)?.[1] || targetSeg?.title.split('→')[1]?.trim() || '湖北';
+    const isGuangshui = poi.address.includes('广水') || poi.name.includes('广水') || poi.name.includes('应山');
+    return {
+      id: `overnight-${poi.id}`, poiId: poi.id, name: poi.name, coord: poi.coord,
+      address: poi.address, city: detectedCity,
+      targetCityOrArea: isGuangshui ? '广水市' : detectedCity,
+      day: 1, sourceSegmentId: targetSegId, source: 'amap-search', rating: poi.rating
+    };
+  };
+
   const handleSetOvernightStop = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isCurrentOvernight) {
       setOvernightStop(null);
     } else {
-      const detectedCity = poi.address.match(/(.+?[市区县])/)?.[1] || targetSeg?.title.split('→')[1]?.trim() || '随州市';
-      const isGuangshui = poi.address.includes('广水') || poi.name.includes('广水') || poi.name.includes('应山') || targetSegId === 's3';
-      const targetArea = isGuangshui ? '广水市' : detectedCity.includes('随州') ? '随州市' : detectedCity;
-
-      const candidate: OvernightStop = {
-        id: `overnight-${poi.id}`,
-        poiId: poi.id,
-        name: poi.name,
-        coord: poi.coord,
-        address: poi.address,
-        city: detectedCity,
-        targetCityOrArea: targetArea,
-        day: 1,
-        sourceSegmentId: targetSegId,
-        rating: poi.rating,
-        todayDrivingKm: isGuangshui ? 182 : 258,
-        todayDrivingDurationSec: isGuangshui ? 13500 : 18600,
-        todayEta: isGuangshui ? '16:45' : '18:35',
-        tomorrowRemainingKm: isGuangshui ? 354 : 278,
-        tomorrowRemainingDurationSec: isGuangshui ? 23400 : 18300,
-        decisionTag: isGuangshui ? 'today_relaxed' : 'more_balanced',
-        decisionLabel: isGuangshui ? '今天更轻松' : '更均衡',
-        decisionReason: isGuangshui
-          ? '第一天开行约 3.8 小时即可收车休整，避开夜路；次日还剩 354 km 需早出发。'
-          : '两日驾驶时长最均衡，体感平稳不易疲劳，市区商业与补给条件更优。'
-      };
-
-      setOvernightStop(candidate);
+      setOvernightStop(makeCandidate());
     }
   };
 
   const handleAddToComparison = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const detectedCity = poi.address.match(/(.+?[市区县])/)?.[1] || '随州市';
-    const isGuangshui = poi.address.includes('广水') || poi.name.includes('广水');
-    const targetArea = isGuangshui ? '广水市' : '随州市';
-    const candidate: OvernightStop = {
-      id: `overnight-${poi.id}`,
-      poiId: poi.id,
-      name: poi.name,
-      coord: poi.coord,
-      address: poi.address,
-      city: detectedCity,
-      targetCityOrArea: targetArea,
-      day: 1,
-      sourceSegmentId: targetSegId,
-      rating: poi.rating,
-      todayDrivingKm: isGuangshui ? 182 : 258,
-      todayDrivingDurationSec: isGuangshui ? 13500 : 18600,
-      todayEta: isGuangshui ? '16:45' : '18:35',
-      tomorrowRemainingKm: isGuangshui ? 354 : 278,
-      tomorrowRemainingDurationSec: isGuangshui ? 23400 : 18300,
-      decisionTag: isGuangshui ? 'today_relaxed' : 'more_balanced',
-      decisionLabel: isGuangshui ? '今天更轻松' : '更均衡',
-      decisionReason: isGuangshui
-        ? '第一天开行约 3.8 小时即可早早收车休整；次日还剩 354 km。'
-        : '两日驾驶时长最均衡，体感平稳。'
-    };
-    addOvernightCandidate(candidate);
+    addOvernightCandidate(makeCandidate());
     setIsComparisonModalOpen(true);
   };
 
@@ -262,37 +221,19 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ poi, isSelected, onS
       </div>
 
       <div className="facility-details-row">
-        {poi.rating && (
+        {poi.rating != null && (
           <span className="rating-star">
             <Star size={12} fill="#f59e0b" color="#f59e0b" />
             <span>{poi.rating}</span>
             {poi.reviewCount && <span>({poi.reviewCount}条评价)</span>}
           </span>
         )}
-        {poi.status && <span>{poi.status}</span>}
+        {poi.rating == null && <span>暂无评分</span>}
+        <span>{poi.status || '营业状态未知'}</span>
+        {poi.priceLevel && <span>{poi.priceLevel}</span>}
       </div>
 
-      {/* 酒店专属：两日行程模拟预览 */}
-      {isHotel && (
-        <div
-          className="hotel-overnight-preview"
-          style={{
-            fontSize: '11px',
-            color: '#4338ca',
-            background: '#f5f3ff',
-            padding: '5px 8px',
-            borderRadius: '6px',
-            margin: '4px 0 6px',
-            border: '1px solid #ddd6fe',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}
-        >
-          <span>🛏 若设为今晚住宿: 今日约 {poi.name.includes('广水') ? '3.8h' : '5.1h'} · 明日约 {poi.name.includes('广水') ? '6.5h' : '5.0h'}</span>
-          <span style={{ fontWeight: 800 }}>{poi.name.includes('广水') ? '【今天更轻松】' : '【更均衡】'}</span>
-        </div>
-      )}
+      {isHotel && <div className="hotel-overnight-preview">🛏 设为今晚住宿后按实际路线测算两日驾驶数据</div>}
 
       <div className="facility-card-bottom">
         <div className="facility-tags">
@@ -301,7 +242,7 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ poi, isSelected, onS
               className="feature-pill"
               style={{ background: '#ecfdf5', color: '#059669', borderColor: '#a7f3d0' }}
             >
-              ★ 极度顺路
+              距路线 ≤ 1 km
             </span>
           )}
           {(poi.tags || []).slice(0, 3).map((tag, idx) => {

@@ -3,6 +3,7 @@ import { X, Bed, Check, Sparkles, AlertCircle, ArrowRight, RotateCcw } from 'luc
 import { useTripStore } from '../../store/useTripStore';
 import { formatDuration } from '../../utils/geo';
 import { OvernightStop } from '../../types/trip';
+import { getOvernightMetrics } from '../../utils/overnightMetrics';
 
 export const OvernightDecisionModal: React.FC = () => {
   const {
@@ -11,7 +12,11 @@ export const OvernightDecisionModal: React.FC = () => {
     overnightCandidates,
     overnightStop,
     setOvernightStop,
-    removeOvernightCandidate
+    removeOvernightCandidate,
+    segments,
+    selectedOptions,
+    routeResults,
+    dayStartTimes
   } = useTripStore();
 
   if (!isComparisonModalOpen) return null;
@@ -128,14 +133,12 @@ export const OvernightDecisionModal: React.FC = () => {
           gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
           gap: '16px'
         }}>
+          {overnightCandidates.length === 0 && <div>暂无住宿候选。请从当前高德酒店搜索结果中点击“对比”。</div>}
           {overnightCandidates.map((candidate) => {
             const isCurrentChosen = overnightStop?.id === candidate.id || overnightStop?.name === candidate.name;
-            const badgeStyle = getTagBadgeStyle(candidate.decisionTag);
-
-            const day1Km = candidate.todayDrivingKm || 200;
-            const day2Km = candidate.tomorrowRemainingKm || 300;
-            const totalKm = day1Km + day2Km;
-            const day1Ratio = Math.round((day1Km / totalKm) * 100);
+            const metrics = getOvernightMetrics(candidate, overnightStop, segments, selectedOptions, routeResults, dayStartTimes);
+            const badgeStyle = getTagBadgeStyle(metrics?.label === '今天更轻松' ? 'today_relaxed' : metrics?.label === '明天更轻松' ? 'tomorrow_relaxed' : 'more_balanced');
+            const day1Ratio = metrics?.ratio ?? 50;
 
             return (
               <div
@@ -178,7 +181,7 @@ export const OvernightDecisionModal: React.FC = () => {
                       padding: '2px 8px',
                       borderRadius: '99px'
                     }}>
-                      ★ {candidate.decisionLabel || '更均衡'}
+                      {metrics?.label || '等待实路测算'}
                     </span>
                   </div>
 
@@ -200,7 +203,7 @@ export const OvernightDecisionModal: React.FC = () => {
                   lineHeight: 1.4,
                   border: '1px solid #f1f5f9'
                 }}>
-                  {candidate.decisionReason}
+                  {candidate.source === 'amap-search' ? '候选来自当前高德酒店搜索。' : '候选由用户提供，酒店元数据未核验。'}{metrics ? '以下里程与时长来自当前实路。' : '选择后将测算两日实路。'}
                 </div>
 
                 {/* 今日与明日驾驶数据对比 */}
@@ -219,13 +222,13 @@ export const OvernightDecisionModal: React.FC = () => {
                       今天驾驶 (Day 1)
                     </div>
                     <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
-                      {day1Km} km
+                      {metrics ? `${metrics.todayKm} km` : '等待路线数据'}
                     </div>
                     <div style={{ fontSize: '11px', color: '#059669', fontWeight: 700, marginTop: '1px' }}>
-                      {candidate.todayDrivingDurationSec ? formatDuration(candidate.todayDrivingDurationSec) : '约 4h'}
+                      {metrics ? formatDuration(metrics.todaySeconds) : '等待路线数据'}
                     </div>
                     <div style={{ fontSize: '10.5px', color: '#4338ca', marginTop: '2px', fontWeight: 700 }}>
-                      预计 {candidate.todayEta || '17:30'} 抵达
+                      预计 {metrics ? `${metrics.eta} 抵达（仅含驾驶）` : '抵达时间待测算'}
                     </div>
                   </div>
 
@@ -235,10 +238,10 @@ export const OvernightDecisionModal: React.FC = () => {
                       明日剩余 (Day 2)
                     </div>
                     <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
-                      {day2Km} km
+                      {metrics ? `${metrics.tomorrowKm} km` : '等待路线数据'}
                     </div>
                     <div style={{ fontSize: '11px', color: '#059669', fontWeight: 700, marginTop: '1px' }}>
-                      {candidate.tomorrowRemainingDurationSec ? formatDuration(candidate.tomorrowRemainingDurationSec) : '约 5h'}
+                      {metrics ? formatDuration(metrics.tomorrowSeconds) : '等待路线数据'}
                     </div>
                     <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '2px' }}>
                       终点: 郧阳区
@@ -247,7 +250,7 @@ export const OvernightDecisionModal: React.FC = () => {
                 </div>
 
                 {/* 两日节奏比例条 */}
-                <div>
+                {metrics && <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#64748b', marginBottom: '3px' }}>
                     <span>Day 1 ({day1Ratio}%)</span>
                     <span>Day 2 ({100 - day1Ratio}%)</span>
@@ -256,7 +259,7 @@ export const OvernightDecisionModal: React.FC = () => {
                     <div style={{ width: `${day1Ratio}%`, background: '#ea580c' }} />
                     <div style={{ width: `${100 - day1Ratio}%`, background: '#059669' }} />
                   </div>
-                </div>
+                </div>}
 
                 {/* 选用按钮 */}
                 <div style={{ marginTop: 'auto', paddingTop: '4px' }}>

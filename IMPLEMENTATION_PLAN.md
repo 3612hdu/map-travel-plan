@@ -7,6 +7,12 @@
 
 ---
 
+## Core Fix Sprint 2 完成记录（2026-09-26）
+
+本轮仅完成视频来源与路线绑定、亮点实路区间、POI/住宿数据可信度。视频旧条目逐项审计与处理记录见 `docs/core-fix-2/video-provenance.md`；亮点由途经镇投影到当前高德 Polyline 后生成进度范围。高德缺失评分、营业状态、价格均不填默认值；住宿比较不再预置酒店或行车数字。八套构建/测试全部通过，五张真实浏览器截图见 `docs/core-fix-2/`。审计当前 **28 COMPLETE / 11 PARTIAL / 0 MISSING**。下文旧计划中的固定视频数据与预置住宿候选仅为历史设计，不再是当前实现。
+
+---
+
 ## Core Fix Sprint 1 完成记录（2026-09-26）
 
 本轮只修复审计 Top 1～3，不扩展新 Phase。路线服务先获取当前 RouteOption 的真实基准 Polyline，将 scenic via 和 customWaypoints 投影得到 `distanceAlongRouteMeters`，按进度排序后传给 Driving；双停靠点反向加入与近线酒店重算已在真实浏览器验证。`s6` 折中方案改为仅经习家店 `[10]`，与完整环库 `[9,10,11]` 的实测里程差约 4.7 km；新增距离、耗时、几何和道路序列比较，重合时在 UI 提示。Store 的 `MapMode` 与 `viewportRevision` 给地图自动 fit 单一所有者，优先级为 `segment-focus > segment-selected > day-overview > trip-overview`；Detail 内右栏和搜索默认按当前段。

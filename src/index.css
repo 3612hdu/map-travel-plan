@@ -856,12 +856,14 @@ input {
   box-shadow: var(--shadow-sm);
   border-color: var(--primary);
 }
+.highlight-thumb-card.selected { border-color: #f97316; box-shadow: 0 0 0 2px #fed7aa; }
 
 .highlight-img-wrapper {
   height: 64px;
   width: 100%;
   position: relative;
 }
+.highlight-illustration-label { position: absolute; right: 4px; bottom: 4px; background: rgba(15,23,42,.8); color: white; padding: 1px 4px; border-radius: 3px; font-size: 9px; }
 
 .highlight-img {
   width: 100%;
@@ -1129,6 +1131,10 @@ input {
 }
 
 .video-featured-card {
+  display: block;
+  width: 100%;
+  padding: 0;
+  text-align: left;
   border-radius: 14px;
   overflow: hidden;
   border: 1px solid #e2e8f0;
@@ -1234,6 +1240,11 @@ input {
 }
 
 .video-sub-card {
+  display: block;
+  width: 100%;
+  padding: 0;
+  margin-top: 10px;
+  text-align: left;
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid #e2e8f0;
@@ -1241,6 +1252,9 @@ input {
   cursor: pointer;
   transition: all 0.15s;
 }
+.video-cover-placeholder { height: 100%; display: grid; place-items: center; color: #e2e8f0; font-weight: 700; background: linear-gradient(135deg,#1e293b,#334155); }
+.video-location-note { font-size: 10px; color: #64748b; margin-top: 4px; }
+.video-source-link { display: inline-flex; align-items: center; gap: 5px; border-radius: 8px; background: #1875ff; color: white; padding: 9px 16px; text-decoration: none; font-weight: 700; }
 
 .video-sub-card:hover {
   transform: translateY(-1.5px);

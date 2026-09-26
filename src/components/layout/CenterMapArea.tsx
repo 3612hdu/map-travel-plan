@@ -16,6 +16,7 @@ export const CenterMapArea: React.FC = () => {
     activeDay,
     mapMode,
     viewportRevision,
+    activeHighlightId,
     setActiveDay,
     enterSegmentDetail,
     exitSegmentDetail,
@@ -34,6 +35,7 @@ export const CenterMapArea: React.FC = () => {
 
   const currentSeg = segments.find((s) => s.id === activeSegmentId);
   const appliedViewportRevision = useRef(-1);
+  const appliedHighlightId = useRef<string | null>(null);
 
   // 初始化高德地图
   useEffect(() => {
@@ -107,8 +109,17 @@ export const CenterMapArea: React.FC = () => {
       activeSegmentId,
       activeDay,
       mapMode,
-      overnightStop
+      overnightStop,
+      activeHighlightId
     );
+
+    if (activeHighlightId !== appliedHighlightId.current) {
+      appliedHighlightId.current = activeHighlightId;
+      if (activeHighlightId && amapService.fitToHighlight()) {
+        appliedViewportRevision.current = viewportRevision;
+        return;
+      }
+    }
 
     if (appliedViewportRevision.current === viewportRevision) return;
     const targetSegments = mapMode === 'trip-overview'
@@ -128,7 +139,7 @@ export const CenterMapArea: React.FC = () => {
       ? amapService.fitToDay(activeDay, segments)
       : amapService.fitToSegment(activeSegmentId);
     if (fitted) appliedViewportRevision.current = viewportRevision;
-  }, [segments, selectedOptions, routeResults, activeSegmentId, activeDay, mapMode, viewportRevision, overnightStop]);
+  }, [segments, selectedOptions, routeResults, activeSegmentId, activeDay, mapMode, viewportRevision, overnightStop, activeHighlightId]);
 
   // 当设施 POIs 变化或选中状态变化时，渲染地图 POI Marker
   useEffect(() => {

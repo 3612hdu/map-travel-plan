@@ -1,0 +1,92 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import puppeteer from 'puppeteer-core';
+
+const browser = await puppeteer.launch({ executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security'] });
+const page = await browser.newPage();
+await page.setViewport({ width: 1920, height: 1080 });
+const output = path.resolve('docs/core-fix-2');
+await fs.mkdir(output, { recursive: true });
+const snap = (name) => page.screenshot({ path: path.join(output, name) });
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const state = (fn) => page.evaluate(fn);
+const pass = (id, detail) => console.log(`PASS ${id}: ${detail}`);
+try {
+  await page.goto('http://127.0.0.1:5173/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.waitForFunction(() => window.__tripStore?.routeResults?.['s6:scenic']?.path?.length > 20, { timeout: 90000 });
+  await page.click('.segment-detail-action');
+  await page.waitForFunction(() => window.__tripStore.mapMode === 'segment-focus');
+  assert.equal(await state(() => window.__tripStore.activeSegmentId), 's6');
+  assert.equal(await state(() => window.__tripStore.selectedOptions.s6), 'scenic');
+  await snap('03-segment-videos.png');
+  const videoState = await state(() => ({ ids: [...document.querySelectorAll('[data-video-id]')].map((el) => el.dataset.videoId), text: document.querySelector('.right-tab-content')?.textContent,
+    scoped: [...document.querySelectorAll('[data-video-id]')].every((el) => {
+      const video = window.__tripStore.videos.find((item) => item.id === el.dataset.videoId);
+      return video?.segmentId === 's6' && (!video.routeOptionIds || video.routeOptionIds.includes('scenic'));
+    }) }));
+  assert(videoState.ids.includes('legacy-douyin'));
+  assert(videoState.text.includes('内容未核验'));
+  pass('FIX4-01', 'unverified link is labeled, with no playback claim');
+  assert(videoState.scoped);
+  pass('FIX4-02', `segment detail shows ${videoState.ids.join(', ')}`);
+
+  const bound = await state(async () => {
+    const { bindHighlightsToRoute } = await import('/src/utils/routeHighlights.ts');
+    const { sliceRouteByProgress } = await import('/src/utils/geo.ts');
+    const s = window.__tripStore;
+    const opt = s.segments.find((seg) => seg.id === 's6').options.find((item) => item.id === 'scenic');
+    const path = s.routeResults['s6:scenic'].path;
+    const items = bindHighlightsToRoute(opt.highlights, 's6', 'scenic', path);
+    return items.map((item) => ({ id: item.id, start: item.startProgress, end: item.endProgress, subsection: sliceRouteByProgress(path, item.startProgress, item.endProgress).length, full: path.length }));
+  });
+  assert(bound.length >= 2 && bound.every((item) => item.start >= 0 && item.end <= 1 && item.start < item.end && item.subsection >= 2 && item.subsection < item.full));
+  pass('FIX5-01', JSON.stringify(bound));
+  await state(() => window.__tripStore.setActiveContentTab('facilities'));
+  await page.click('[data-highlight-id="xijiadian"]');
+  await page.waitForFunction(() => window.__tripStore.activeHighlightId === 'xijiadian' && window.__tripStore.activeContentTab === 'videos' && window.__amapService.getHighlightedPath().length >= 2);
+  const focused = await state(() => ({ sub: window.__amapService.getHighlightedPath().length, full: window.__tripStore.routeResults['s6:scenic'].path.length, overlays: window.__amapService.getMap().getAllOverlays('polyline').filter((line) => line.getOptions()?.strokeColor === '#f97316').length }));
+  assert(focused.sub < focused.full && focused.overlays === 1);
+  await wait(350);
+  await snap('01-highlight-focus.png');
+  pass('FIX5-02', `${focused.sub}/${focused.full} route points highlighted`);
+  assert.deepEqual(await state(() => [...document.querySelectorAll('[data-video-id]')].map((el) => el.dataset.videoId)), ['bili-ring-road']);
+  await page.click('[data-video-id="bili-ring-road"]');
+  await page.waitForFunction(() => window.__tripStore.activeHighlightId === 'xijiadian');
+  await wait(350);
+  const link = await state(() => ({ center: (() => { const p = window.__amapService.getMap().getCenter(); return [p.lng, p.lat]; })(), target: window.__tripStore.videos.find((v) => v.id === 'bili-ring-road').coordinate, sub: window.__amapService.getHighlightedPath().length, mode: window.__tripStore.mapMode }));
+  assert(Math.abs(link.center[0] - link.target[0]) < 0.03 && Math.abs(link.center[1] - link.target[1]) < 0.03);
+  assert(link.sub >= 2 && link.mode === 'segment-focus');
+  await snap('02-highlight-video-link.png');
+  pass('FIX4-03', `video coordinate focused at ${link.center.join(',')}, highlight retained`);
+  await page.click('.modal-close-btn');
+  await page.evaluate(() => document.querySelector('.route-option-card .btn-opt-select')?.click());
+  await page.waitForFunction(() => window.__tripStore.selectedOptions.s6 === 'direct');
+  assert.equal(await state(() => window.__tripStore.activeHighlightId), null);
+  assert.equal(await page.$$eval('[data-highlight-id]', (items) => items.length), 0);
+  assert.equal(await state(() => window.__amapService.getHighlightedPath().length), 0);
+  pass('FIX5-03', 'scenic-only highlights disappear on direct option');
+
+  await state(() => { const s = window.__tripStore; s.setActiveContentTab('facilities'); s.setSearchQuery('酒店'); });
+  await page.waitForFunction(() => window.__tripStore.facilities?.length > 0, { timeout: 90000 });
+  await wait(300);
+  const actual = await state(() => ({ count: window.__tripStore.facilities.length, unrated: window.__tripStore.facilities.filter((poi) => poi.rating == null).length, unknown: window.__tripStore.facilities.filter((poi) => !poi.status).length, fake: window.__tripStore.facilities.filter((poi) => poi.rating === 4.5 && !poi.poiId).length }));
+  assert(actual.unrated > 0 && actual.unknown > 0, `real search lacked missing fields: ${JSON.stringify(actual)}`);
+  const noRatingCard = await page.evaluate(() => { const poi = window.__tripStore.facilities.find((item) => item.rating == null); return document.getElementById(`facility-card-${poi.id}`)?.textContent; });
+  assert(noRatingCard?.includes('暂无评分') && !noRatingCard?.includes('4.5'));
+  await snap('04-poi-no-rating.png');
+  pass('FIX6-01', `${actual.unrated}/${actual.count} real POIs unrated, UI says 暂无评分`);
+  const noStatusCard = await page.evaluate(() => { const poi = window.__tripStore.facilities.find((item) => !item.status); return document.getElementById(`facility-card-${poi.id}`)?.textContent; });
+  assert(noStatusCard?.includes('营业状态未知') && !noStatusCard?.includes('营业中'));
+  await page.evaluate(() => { const poi = window.__tripStore.facilities.find((item) => !item.status); document.getElementById(`facility-card-${poi.id}`)?.click(); });
+  await wait(250);
+  await snap('05-poi-unknown-business-status.png');
+  pass('FIX6-02', `${actual.unknown}/${actual.count} real POIs missing business status, UI says 营业状态未知`);
+  const overnight = await state(() => ({ candidates: window.__tripStore.overnightCandidates.length, hasFake: window.__tripStore.overnightCandidates.some((c) => c.rating != null || c.todayDrivingKm != null || c.todayEta != null) }));
+  assert.equal(overnight.candidates, 0);
+  assert.equal(overnight.hasFake, false);
+  await state(() => window.__tripStore.setIsComparisonModalOpen(true));
+  assert((await page.$eval('.overnight-modal-container', (el) => el.textContent)).includes('暂无住宿候选'));
+  pass('FIX6-03', 'comparison starts empty and does not seed invented hotel facts');
+  console.log('Core Fix Sprint 2: all checks PASS');
+} finally { await browser.close(); }

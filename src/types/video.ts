@@ -1,23 +1,22 @@
-// 沿途视频数据类型
-
 export type VideoPlatform = 'all' | 'xiaohongshu' | 'douyin' | 'bilibili';
+export type VideoSourceType = 'verified-url' | 'manual' | 'mock';
+export type VideoVerificationStatus = 'verified' | 'unverified' | 'unavailable';
 
 export interface VideoReference {
   id: string;
-  platform: 'xiaohongshu' | 'douyin' | 'bilibili';
+  sourceType: VideoSourceType;
+  verificationStatus: VideoVerificationStatus;
+  platform: Exclude<VideoPlatform, 'all'>;
   platformLabel: string;
+  sourceUrl?: string;
   title: string;
-  author: string;
-  avatar?: string;
-  coverImage: string;
-  duration: string;
-  likes: string;
-  comments?: string;
-  locationName: string;
-  coord: [number, number];
+  author?: string;
+  cover?: string;
   segmentId: string;
-  routeOptionId?: string;
-  embedUrl?: string; // 允许嵌入时的 iframe URL
-  externalUrl: string; // 官方外部直达链接
-  isFeatured?: boolean; // 主大卡
+  routeOptionIds?: string[];
+  highlightId?: string;
+  coordinate?: [number, number];
+  coordinateNote?: string;
+  verifiedAt?: string;
+  isFeatured?: boolean;
 }

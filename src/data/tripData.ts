@@ -193,7 +193,7 @@ export const initialSegments: Segment[] = [
         desc: '只保留习家店附近的库区风景段，之后按较直接道路前往郧阳。',
         via: [10], // 只固定习家店；凉水河 + 习家店会与完整环库路线高度重合
         features: ['习家店观景', '部分临水', '兼顾时间'],
-        highlights: segment6Highlights.slice(1, 3)
+        highlights: segment6Highlights.filter((highlight) => highlight.routeOptionIds.includes('compromise'))
       }
     ]
   }

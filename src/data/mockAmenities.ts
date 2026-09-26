@@ -1,5 +1,7 @@
 import { RoutePoi } from '../types/poi';
 
+// 仅保留早期设计演示资料；真实搜索与初始界面均不读取此文件，数值未经高德核验。
+
 export const initialFacilities: RoutePoi[] = [
   // 酒店/民宿
   {

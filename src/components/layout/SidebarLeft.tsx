@@ -225,8 +225,8 @@ export const SidebarLeft: React.FC = () => {
                         display: 'flex',
                         justifyContent: 'space-between'
                       }}>
-                        <span>预计 {overnightStop.todayEta || '17:30'} 抵达</span>
-                        <span style={{ color: '#4338ca', fontWeight: 700 }}>{overnightStop.decisionLabel || '已选用'}</span>
+                        <span>抵达时间以路线测算为准</span>
+                        <span style={{ color: '#4338ca', fontWeight: 700 }}>已选用</span>
                       </div>
                     )}
                   </div>

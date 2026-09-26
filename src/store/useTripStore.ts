@@ -5,52 +5,12 @@ import { VideoReference } from '../types/video';
 import { RouteCalcResult } from '../types/map';
 import { MapMode } from '../types/map';
 import { initialSegments, tripMeta } from '../data/tripData';
-import { initialFacilities } from '../data/mockAmenities';
 import { initialVideos } from '../data/videoData';
 import { RoutePreference, DEFAULT_PREFERENCE } from '../types/preference';
 import { amapService } from '../services/amapService';
 import { reconstructTripWithOvernight, buildDayPlans } from '../utils/tripReconstruction';
 
-export const defaultOvernightCandidates: OvernightStop[] = [
-  {
-    id: 'candidate-guangshui',
-    name: '广水应山宾馆 (广水市)',
-    coord: [113.825977, 31.617015],
-    address: '随州市广水市应山大道68号',
-    city: '随州市',
-    targetCityOrArea: '广水市',
-    day: 1,
-    sourceSegmentId: 's3',
-    rating: 4.6,
-    todayDrivingKm: 182,
-    todayDrivingDurationSec: 13500, // 3h45m
-    todayEta: '16:45',
-    tomorrowRemainingKm: 354,
-    tomorrowRemainingDurationSec: 23400, // 6h30m
-    decisionTag: 'today_relaxed',
-    decisionLabel: '今天更轻松',
-    decisionReason: '第一天开行约 3.8 小时，傍晚 16:45 前即可收车休整，避开夜路；次日还剩 354 km 需早出发。'
-  },
-  {
-    id: 'candidate-suizhou',
-    name: '随州齐星湖会馆 (随州市区)',
-    coord: [113.382324, 31.690275],
-    address: '随州市曾都区迎宾大道88号',
-    city: '随州市',
-    targetCityOrArea: '随州市',
-    day: 1,
-    sourceSegmentId: 's3',
-    rating: 4.8,
-    todayDrivingKm: 258,
-    todayDrivingDurationSec: 18600, // 5h10m
-    todayEta: '18:35',
-    tomorrowRemainingKm: 278,
-    tomorrowRemainingDurationSec: 18300, // 5h05m
-    decisionTag: 'more_balanced',
-    decisionLabel: '更均衡',
-    decisionReason: '两日驾驶时长最均衡 (今日 5.1h · 明日 5.0h)，体感平稳不易疲劳，市区商业与餐饮补给条件更优。'
-  }
-];
+export const defaultOvernightCandidates: OvernightStop[] = [];
 
 interface TripStore {
   // 行程与段落
@@ -60,6 +20,7 @@ interface TripStore {
   activeSegmentId: string;
   mapMode: MapMode;
   viewportRevision: number;
+  activeHighlightId: string | null;
   selectedOptions: Record<string, string>; // segmentId -> optionId
   customWaypoints: Record<string, Stop[]>; // segmentId -> Stop[]
 
@@ -123,6 +84,7 @@ interface TripStore {
   focusPoi: (id: string | null) => void;
   hoverPoi: (id: string | null) => void;
   openVideo: (video: VideoReference | null) => void;
+  focusHighlight: (id: string | null) => void;
 
   toggleTraffic: () => void;
   toggleSatellite: () => void;
@@ -144,6 +106,7 @@ export const useTripStore = create<TripStore>((set, get) => {
     activeSegmentId: 's6', // 默认选中经典段 s6 丹江口 → 郧阳
     mapMode: 'segment-selected',
     viewportRevision: 0,
+    activeHighlightId: null,
     selectedOptions: initialOptions,
     customWaypoints: {},
 
@@ -162,7 +125,7 @@ export const useTripStore = create<TripStore>((set, get) => {
     searchVersion: 0,
     searchScope: 'segment', // 默认当前路段（对应图3）
     selectedCategory: 'all',
-    facilities: initialFacilities,
+    facilities: [],
     isSearching: false,
     showFacilitiesOnMap: true,
 
@@ -214,6 +177,13 @@ export const useTripStore = create<TripStore>((set, get) => {
       })),
 
     setOvernightStop: (stop) => {
+      stop = stop ? {
+        ...stop,
+        rating: stop.source === 'amap-search' ? stop.rating : undefined,
+        todayDrivingKm: undefined, todayDrivingDurationSec: undefined, todayEta: undefined,
+        tomorrowRemainingKm: undefined, tomorrowRemainingDurationSec: undefined,
+        decisionTag: undefined, decisionLabel: undefined, decisionReason: undefined
+      } : null;
       const state = get();
       const currentGen = amapService.nextOvernightGeneration();
 
@@ -247,7 +217,13 @@ export const useTripStore = create<TripStore>((set, get) => {
         overnightStop: stop,
         overnightCandidates: updatedCandidates,
         segments: reconstructedSegments,
-        trip: updatedTrip
+        trip: updatedTrip,
+        routeResults: Object.fromEntries(Object.entries(state.routeResults).filter(([key]) => {
+          const segmentId = key.split(':')[0];
+          const changed = reconstructedSegments.find((seg) => seg.id === segmentId);
+          return changed && !changed.customStartCoord && !changed.customEndCoord
+            && (stop !== null || !['s2', 's3', 's4', 's5'].includes(segmentId));
+        }))
       });
 
       // 4. 识别需要重新请求高德实路规划的路段 (端点坐标发生变更或新拆分的路段)
@@ -287,7 +263,8 @@ export const useTripStore = create<TripStore>((set, get) => {
         activeDay: day,
         activeSegmentId: firstSeg?.id || state.activeSegmentId,
         mapMode: day === 'all' ? 'trip-overview' : 'day-overview',
-        viewportRevision: state.viewportRevision + 1
+        viewportRevision: state.viewportRevision + 1,
+        activeHighlightId: null
       };
     }),
 
@@ -297,7 +274,8 @@ export const useTripStore = create<TripStore>((set, get) => {
         activeSegmentId: id,
         activeDay: seg ? seg.day : state.activeDay,
         mapMode: state.mapMode === 'segment-focus' ? 'segment-focus' : 'segment-selected',
-        viewportRevision: state.viewportRevision + 1
+        viewportRevision: state.viewportRevision + 1,
+        activeHighlightId: null
       };
     }),
 
@@ -309,14 +287,16 @@ export const useTripStore = create<TripStore>((set, get) => {
         activeDay: seg.day,
         mapMode: 'segment-focus',
         searchScope: 'segment',
-        viewportRevision: state.viewportRevision + 1
+        viewportRevision: state.viewportRevision + 1,
+        activeHighlightId: null
       };
     }),
 
     exitSegmentDetail: () => set((state) => ({
       activeDay: 'all',
       mapMode: 'trip-overview',
-      viewportRevision: state.viewportRevision + 1
+      viewportRevision: state.viewportRevision + 1,
+        activeHighlightId: null
     })),
 
     selectRouteOption: (segmentId, optionId) => {
@@ -325,7 +305,8 @@ export const useTripStore = create<TripStore>((set, get) => {
           ...state.selectedOptions,
           [segmentId]: optionId
         },
-        viewportRevision: state.viewportRevision + 1
+        viewportRevision: state.viewportRevision + 1,
+        activeHighlightId: null
       }));
     },
 
@@ -368,6 +349,7 @@ export const useTripStore = create<TripStore>((set, get) => {
     focusPoi: (id) => set({ selectedPoiId: id }),
     hoverPoi: (id) => set({ hoveredPoiId: id }),
     openVideo: (video) => set({ activeVideo: video }),
+    focusHighlight: (id) => set({ activeHighlightId: id }),
 
     toggleTraffic: () => set((state) => ({ isTrafficEnabled: !state.isTrafficEnabled })),
     toggleSatellite: () => set((state) => ({ isSatelliteEnabled: !state.isSatelliteEnabled })),

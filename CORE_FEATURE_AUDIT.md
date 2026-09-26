@@ -2,6 +2,8 @@
 
 审计日期：2026-09-26。基线：`master` / `f06c15a`，审计前工作区干净。审计只评估现有产品，不修改业务代码。
 
+**Core Fix Sprint 2 更新（2026-09-26）**：FIX4/5/6 已在真实高德浏览器验收。视频旧条目审计见 `docs/core-fix-2/video-provenance.md`；五张截图见 `docs/core-fix-2/`。已将 #36、#37 从 PARTIAL 改为 COMPLETE。POI 缺失评分/营业状态不再填假值，住宿候选不再预置酒店与行程数值；#39 因未选候选仍待实路测算，维持 PARTIAL。下方早期段落包含历史观察，以本更新及各条最新状态为准。
+
 **Core Fix Sprint 1 更新（2026-09-26）**：下方保留原审计的历史观察，已将本轮经 `test-core-fix-1.mjs` 实测修复的条目改为当前状态。六张修复后截图见 `docs/core-fix-1/`；原 `docs/core-audit/` 截图为修复前基线。
 
 ## 依据与验证方式
@@ -51,7 +53,7 @@
 
 ## E. Search
 
-搜索链路：`CorridorSearchBox.tsx` 选择作用域并提交自由词；`FacilityTab.tsx` 取已选实路 Polyline；`corridorSearch.ts` 以沿线锚点做 `AMap.PlaceSearch.searchNearBy`，以点到折线距离筛选 12 km 内结果，标注所属 Day/Segment、几何垂距与**估算**绕行，渲染 Marker 与右侧列表。不是地图中心搜索。没有可用 Polyline 时则退回 `mockAmenities.ts`，但 UI 没有明确提示 Mock 状态。类别配置见 `src/config/poiTypes.ts`。
+搜索链路：`CorridorSearchBox.tsx` 选择作用域并提交自由词；`FacilityTab.tsx` 取已选实路 Polyline；`corridorSearch.ts` 以沿线锚点做 `AMap.PlaceSearch.searchNearBy`，以点到折线距离筛选 12 km 内结果，标注所属 Day/Segment、几何垂距与**估算**绕行，渲染 Marker 与右侧列表。不是地图中心搜索。没有可用 Polyline 时返回空结果，不注入 Mock。类别配置见 `src/config/poiTypes.ts`。
 
 | # | 能力 | 等级 | 当前实现文件与真实交互 | 浏览器证据；剩余缺口 |
 |---|---|---|---|---|
@@ -66,7 +68,7 @@
 | 24 | 停车场 | PARTIAL | `poiTypes.ts` `parking` 类别。 | 未逐项实搜；同 #20 的分类风险。 |
 | 25 | 自定义关键词 | COMPLETE | `CorridorSearchBox.tsx` 文本输入提交给 `corridorSearch.ts`，不是固定类别按钮。 | 本轮直接输入“酒店”并提交成功；其他自由词相关性尚未单独测。 |
 
-结果字段有 `distanceToRoute`、`estimatedDetourKm`、`sourceSegmentId`/`sourceSegmentTitle`，对应 Marker、列表和当前段；这些结构已实现。结果可信度仍需治理：`corridorSearch.ts` 在高德缺少评分时填 `4.5`，并给每个 POI 填“营业中”；截图显示大量酒店 4.5 分、距路线 0 km/预计绕行 0.2 km。卡片的“预计绕行”只是几何估算，并非道路实测。当前首个近线酒店加入后实际路线增加 173.469 km，说明“极度顺路”判断不能直接指导停靠点插入。
+结果字段有 `distanceToRoute`、`estimatedDetourKm`、`sourceSegmentId`/`sourceSegmentTitle`，对应 Marker、列表和当前段；这些结构已实现。Sprint 2 已删除高德缺失评分时的 4.5 和默认“营业中”，真实搜索中 57/57 个无评分/状态的结果均显示“暂无评分”“营业状态未知”；价格缺失时不显示。卡片的“预计绕行”只是几何估算，并非道路实测。当前首个近线酒店加入后实际路线增加 173.469 km，说明“极度顺路”判断不能直接指导停靠点插入。
 
 ## F. Facilities
 
@@ -87,25 +89,19 @@
 | 33 | 视频与设施共享一个面板 | COMPLETE | `RightPanel.tsx` 条件渲染单一右栏内容。 | 本轮双 Tab 共享区域，见 `06-video-tab.png`、`07-facility-tab.png`。 |
 | 34 | Tab 互斥 | COMPLETE | `activeContentTab` 仅有 `videos`/`facilities`。 | 本轮点击后只显示相应内容。 |
 
-平台与来源实情：`src/data/videoData.ts` 是**手动维护的静态条目**，未发现合法平台 API 或自动检索。缩略图来自通用 Unsplash 图片；标题、作者、时长、赞数、评论数是代码中直接填写的数据，未有来源校验，页面“真实用户的实拍分享”不能由当前数据证明。
-
-| 平台 | 当前方式 | 页面内播放与稳定性 |
-|---|---|---|
-| B站 | 一条配置了 `player.bilibili.com/player.html?bvid=BV1xx411c7mD` 的 iframe 与对应外链；另一条只指向 B站首页。 | `VideoModal.tsx` 对有 `embedUrl` 的条目内嵌 iframe；本轮未证实该 BV 号有效、内容匹配或能完整播放，稳定性未验证。 |
-| 抖音 | 多条静态卡片复用同一个 `douyin.com/video/...` 地址；没有嵌入 URL。 | 本轮点击主卡显示封面和“版权限制，不支持网页内嵌播放”，仅提供外链。真实性与标题匹配未验证。 |
-| 小红书 | 静态卡片的外链均指向 `xiaohongshu.com/explore` 通用入口。 | 无真实内容嵌入，只有封面与泛化外链，无法直达所述视频。 |
+当前来源：原八条静态视频经逐条审计后删除七条；重复抖音链接保留一条为明确未核验线索。另有两条 B站 URL、标题、作者可在公开索引核对。自动打开 B站页面遇到 412，故不保证播放可用；用户通过“打开原平台”自行访问。不使用 iframe，也不展示没有证据的点赞、时长、封面或拍摄机位。详见 `docs/core-fix-2/video-provenance.md`。
 
 ## H. Video ↔ Map
 
 | # | 能力 | 等级 | 当前实现文件与真实交互 | 浏览器证据；剩余缺口 |
 |---|---|---|---|---|
-| 36 | 视频与 Segment/坐标/路线联动 | PARTIAL | `VideoReference` 含 `segmentId`、`coord`、可选 `routeOptionId`；`VideoTab.tsx` 点击平移并开 Modal。Sprint 1 在 Detail 中仅显示当前段关联视频，无视频则空态。 | Detail 的 Tab 切换不破坏 Focus；仍未按选中 RouteOption 筛选或高亮视频对应路线局部，内容真实性未核验。 |
+| 36 | 视频与 Segment/坐标/路线联动 | COMPLETE | `VideoReference` 记录来源类型、核验状态、平台 URL、段/方案/亮点与路线参考坐标；Detail 按段和所选方案过滤，选亮点后进一步筛选。视频点击关联亮点并定位参考坐标。 | FIX4-01～03 浏览器通过；未核验内容显示“内容未核验”，无播放入口；原平台访问不保证始终可用，坐标明确不是拍摄机位。 |
 
 ## I. Route Highlight
 
 | # | 能力 | 等级 | 当前实现文件与真实交互 | 浏览器证据；剩余缺口 |
 |---|---|---|---|---|
-| 37 | 风景说明、临水/山区/停车/视频参考的路线亮点 | PARTIAL | `RouteHighlights.tsx` 在 Sprint 1 改为按当前 RouteOption 展示亮点和方案描述；`scenicHighlights.ts` 仍是静态点位。 | 选方案联动已修；亮点尚无 `pathRange`、实路校验或视频关联，空间语义仍未闭合。 |
+| 37 | 风景说明、临水/山区/停车/视频参考的路线亮点 | COMPLETE | `bindHighlightsToRoute` 将已核对途经镇投影到当前 RouteOption 实际 Polyline，生成 `startProgress/endProgress`；地图只截取该区间并用橙色加粗，其他路线弱化；方案切换清除不相关亮点。 | FIX5-01～03 浏览器通过，习家店高亮 176/2559 个路线点；仅陈述途经镇及路线参考，不声称最佳观景或停车条件。 |
 
 ## J. UI / Product Experience
 
@@ -117,7 +113,7 @@
 
 | # | 能力 | 等级 | 当前实现文件与真实交互 | 浏览器证据；剩余缺口 |
 |---|---|---|---|---|
-| 39 | 时间轴与住宿扩展不破坏核心流程 | PARTIAL | `timeline.ts`、`TripTimeline.tsx`、`tripReconstruction.ts`、`OvernightDecisionModal.tsx`：时间轴随路线推演；住宿弹窗可选广水，Trip 6→7 段并出现住宿 Marker。 | 本轮可操作并返回全程；见 `08-overnight.png`。但时间轴抢占左侧首屏，住宿比较的 182/354 km、ETA 和评分是 `useTripStore.ts` 的预置候选数值，设施卡还按名字“广水”硬编码今日/明日时长；本轮选宿 3 秒后仅规划 6/7 段，实时比较可信度与异步完成态须再核对。 |
+| 39 | 时间轴与住宿扩展不破坏核心流程 | PARTIAL | 时间轴和住宿重构可用；比较候选来自用户当前高德酒店搜索，未选候选显示待实路测算；已选候选在当前路段实路齐全后计算两日里程/时长和仅含驾驶的 ETA。 | Sprint 2 清除了预置酒店/评分/价格/营业状态及名字驱动的行车指标；未选候选还不能直接做双方案实路对比，左栏信息密度与异步完成态仍需后续核对。 |
 
 ## 截图清单
 
@@ -138,11 +134,11 @@ Core Fix Sprint 1 修复后截图：`docs/core-fix-1/01-waypoint-before.png`、`
 
 ### COMPLETE
 
-26 项。
+28 项。
 
 ### PARTIAL
 
-13 项。
+11 项。
 
 ### MISSING
 
@@ -152,10 +148,10 @@ Core Fix Sprint 1 修复后截图：`docs/core-fix-1/01-waypoint-before.png`、`
 
 ## 剩余重要核心缺口
 
-1. **视频内容真实性与空间关联不足。** 静态卡片的来源、链接和热度未核验；Detail 已按段过滤，但未按所选方案或实际道路位置关联。对应 #36 和视频章节。
-2. **POI 元数据与筛选可能误导决策。** 缺失评分时仍填 4.5，营业状态使用预置值；类别切换可能沿用旧搜索词并强制改类。对应 #19～24、#27。
-3. **住宿比较与时间轴数据可信度不足。** 候选的今日/明日里程、ETA 与评分存在预置数值，异步完成态需核实。对应 #39。
-4. **路线亮点仍缺实路范围与视频关联。** 虽已随选中方案切换，静态点位没有 `pathRange` 或视频来源校验。对应 #37。
+1. **视频自动发现与逐个播放可用性未覆盖。** 本轮只治理手工来源与路线关联，原平台可用性仍可能变化；不将此计入现有 #36 缺口。
+2. **POI 分类切换准确性仍需治理。** 缺失评分、状态、价格已诚实展示；类别切换仍可能沿用旧搜索词并强制改类。对应 #19～24、#27。
+3. **住宿候选间实路对比尚不完整。** 预置数值已删除，未选候选目前等待实路测算；异步完成态需继续核实。对应 #39。
+4. **路线亮点已有实路范围与视频关联。** 本轮 #37 完成；进一步的景观质量或停车条件需独立证据。
 5. **右栏与左栏信息密度偏高。** 设施操作按钮拥挤，时间轴挤占分段首屏，部分导航 Tab 仍只有样式切换。对应 #38。
 
-Core Fix Sprint 1 只处理原 Top 1～3，以上事项留待后续决策。
+Core Fix Sprint 2 仅处理 FIX4～6。

@@ -193,6 +193,36 @@ export function orderPointsAlongRoute<T extends { coord: [number, number] }>(
     .map(({ originalIndex: _originalIndex, ...point }) => point as T & RouteProjection);
 }
 
+export function routeLength(path: [number, number][]): number {
+  return path.slice(1).reduce((sum, point, index) => sum + geoDistance(path[index], point), 0);
+}
+
+// 按实际折线累计距离截取，首尾插值保证高亮严格落在指定进度上。
+export function sliceRouteByProgress(path: [number, number][], start: number, end: number): [number, number][] {
+  if (path.length < 2 || start < 0 || end > 1 || start >= end) return [];
+  const total = routeLength(path);
+  if (!total) return [];
+  const from = start * total;
+  const to = end * total;
+  const result: [number, number][] = [];
+  let traveled = 0;
+  for (let i = 1; i < path.length; i++) {
+    const length = geoDistance(path[i - 1], path[i]);
+    const next = traveled + length;
+    if (length > 0 && next >= from && traveled <= to) {
+      const interpolate = (distance: number): [number, number] => {
+        const ratio = Math.max(0, Math.min(1, (distance - traveled) / length));
+        return [path[i - 1][0] + (path[i][0] - path[i - 1][0]) * ratio, path[i - 1][1] + (path[i][1] - path[i - 1][1]) * ratio];
+      };
+      if (!result.length) result.push(interpolate(from));
+      result.push(interpolate(Math.min(to, next)));
+    }
+    traveled = next;
+    if (traveled >= to) break;
+  }
+  return result;
+}
+
 /**
  * 根据垂直距离估算往返绕行增加里程 (km)
  * 重要语义声明：

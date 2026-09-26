@@ -12,10 +12,14 @@ export interface Stop {
 
 export interface RouteHighlight {
   id: string;
+  segmentId: string;
+  routeOptionIds: string[];
   title: string;
   desc: string;
   image: string;
-  location: [number, number];
+  anchor: [number, number];
+  startProgress?: number;
+  endProgress?: number;
   tags?: string[];
 }
 
@@ -70,6 +74,7 @@ export interface OvernightStop {
   sourceSegmentId: string;
   targetCityOrArea?: string; // 如 "广水市" / "随州市"
   rating?: number;
+  source?: 'amap-search' | 'user-input';
   positionType?: 'middle' | 'boundary'; // 处于路段中间还是边界
 
   // 动态路线测算数据
@@ -132,4 +137,3 @@ export interface Trip {
   preferences: string[];
   days: DayPlan[];
 }
-

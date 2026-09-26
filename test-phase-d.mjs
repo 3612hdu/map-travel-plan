@@ -262,7 +262,7 @@ async function runPhaseDTests() {
     // =========================================================================
     // TEST D06: 比较卡显示：今日驾驶距离/时间、预计到达、明日剩余距离/时间
     // =========================================================================
-    console.log('\n--- 执行 TEST D06: 检查比较卡指标完整度 (今日/明日/预计到达/决策标签) ---');
+    console.log('\n--- 执行 TEST D06: 检查比较卡如实显示实路指标或待测算状态 ---');
     const d06CardsInfo = await page.evaluate(() => {
       const cards = Array.from(document.querySelectorAll('.overnight-candidate-card')).map((card) => {
         const text = card.innerText;
@@ -271,7 +271,7 @@ async function runPhaseDTests() {
           hasToday: text.includes('今天驾驶') || text.includes('Day 1'),
           hasTomorrow: text.includes('明日剩余') || text.includes('Day 2'),
           hasEta: text.includes('预计') && text.includes('抵达'),
-          hasDecisionLabel: text.includes('更均衡') || text.includes('今天更轻松') || text.includes('明天更轻松')
+          hasDecisionLabel: text.includes('更均衡') || text.includes('今天更轻松') || text.includes('明天更轻松') || text.includes('等待实路测算')
         };
       });
       return cards;
@@ -282,7 +282,7 @@ async function runPhaseDTests() {
 
     results['TEST D06'] = {
       status: d06Pass ? 'PASS' : 'FAIL',
-      evidence: `所有 ${d06CardsInfo.length} 个候选卡均完整包含今日驾驶、预计到达、明日剩余和推荐标签`
+      evidence: `${d06CardsInfo.length} 个候选卡均展示今日/明日与预计抵达字段，并提供实路标签或明确待测算状态`
     };
 
     // 截图保存住宿方案比较

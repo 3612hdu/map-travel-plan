@@ -7,7 +7,6 @@ import {
   estimateDetourKm,
   classifyDetourGrade
 } from '../utils/geo';
-import { initialFacilities } from '../data/mockAmenities';
 import { FACILITY_CATEGORIES } from '../config/poiTypes';
 
 export interface SegmentPathInfo {
@@ -102,8 +101,7 @@ export function calculateRelevanceScore(
   else score += 2;
 
   // 2. POI 官方评分 (0 ~ 30 分)
-  const rating = poi.rating ?? 4.2;
-  score += Math.min(30, Math.round(rating * 6));
+  if (poi.rating != null) score += Math.min(30, Math.round(poi.rating * 6));
 
   // 3. 是否位于当前激活选中的 Segment (0 或 15 分，给予用户正在查看的路段明确权重倾向)
   if (poi.sourceSegmentId === activeSegmentId) {
@@ -210,7 +208,7 @@ export async function searchCorridorPois(
   scope: 'trip' | 'segment' = 'segment'
 ): Promise<RoutePoi[]> {
   if (!path || path.length < 2) {
-    return filterMockFacilities(keywordOrCategory, category, segmentId);
+    return [];
   }
 
   const catConfig = FACILITY_CATEGORIES[category] || FACILITY_CATEGORIES.all;
@@ -358,7 +356,12 @@ export async function searchCorridorPois(
         if (!uniqueMap.has(id)) {
           const estimatedDetourKmVal = estimateDetourKm(distKm);
           const detourGrade = classifyDetourGrade(distKm);
-          const ratingVal = p.biz_ext?.rating ? Number(p.biz_ext.rating) : 4.5;
+          const rawRating = Number(p.biz_ext?.rating);
+          const ratingVal = Number.isFinite(rawRating) && rawRating > 0 ? rawRating : undefined;
+          const businessStatus = typeof p.biz_ext?.business_status === 'string' && p.biz_ext.business_status.trim()
+            ? p.biz_ext.business_status.trim() : undefined;
+          const rawPrice = Number(p.biz_ext?.cost);
+          const priceLevel = Number.isFinite(rawPrice) && rawPrice > 0 ? `人均 ¥${rawPrice}` : undefined;
 
           const relevanceScore = calculateRelevanceScore(
             {
@@ -384,12 +387,13 @@ export async function searchCorridorPois(
             detourDistance: estimatedDetourKmVal, // 保持旧字段兼容
             detourGrade,
             rating: ratingVal,
+            priceLevel,
             relevanceScore,
             tags: [
               detourGrade === 'direct' ? '路边顺路' : `预计绕行约 +${estimatedDetourKmVal}km`,
-              detectedCat === 'gas' ? '92#/95#' : detectedCat === 'ev' ? '快充' : '推荐'
+              '高德地点搜索'
             ],
-            status: '营业中',
+            status: businessStatus,
             sourceSegmentId: matchedSegId,
             sourceSegmentTitle: matchedSegTitle,
             sourceDay: matchedDay,
@@ -453,19 +457,4 @@ function detectCategory(rawText: string, fallback: FacilityCategory): FacilityCa
   if (/厕|洗手间|公厕|WC/.test(rawText)) return 'toilet';
   if (/停|车位|停车场|停车区/.test(rawText)) return 'parking';
   return 'hotel';
-}
-
-function filterMockFacilities(
-  query: string,
-  category: FacilityCategory,
-  segmentId: string
-): RoutePoi[] {
-  return initialFacilities.filter((p) => {
-    const matchCategory = category === 'all' || p.category === category;
-    const matchQuery = !query || p.name.includes(query) || p.address.includes(query);
-    return matchCategory && matchQuery;
-  }).map((poi) => ({
-    ...poi,
-    relevanceScore: calculateRelevanceScore(poi, category, segmentId)
-  })).sort((a, b) => (b.relevanceScore ?? 0) - (a.relevanceScore ?? 0));
 }

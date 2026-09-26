@@ -8,12 +8,53 @@
 ---
 
 ## 阶段验收结论
+- **Core Fix Sprint 3（设施分类/双向联动/住宿实路对比/外跳治理）**：**COMPLETE**（100% 达成）
+- **Core Fix Sprint 2（视频来源/路线亮点/数据诚信）**：**COMPLETE**（100% 达成）
+- **Core Fix Sprint 1（停靠点顺序/方案差异/稳定详情）**：**COMPLETE**（100% 达成）
 - **Phase A（UI 架构与设计规范还原）**：**COMPLETE**（100% 达成）
 - **Phase B（高德 JS API 2.0 实路引擎与实时算路）**：**COMPLETE**（100% 达成）
 - **Phase C / C.1（走廊 POI 搜索与请求治理）**：**COMPLETE**（100% 达成）
-- **Phase D（行程时间轴与住宿决策系统）**：**COMPLETE**（100% 达成）
+- **Phase D / D.1（行程时间轴与多日泛化住宿决策）**：**COMPLETE**（100% 达成）
 
-所有专项测试套件均已 100% 通过（基准 TEST 01～14 + Phase C/C.1 + Phase D TEST D01～D08），全部高清实机截图已归档至 `docs/screenshots/` 目录。
+核心功能审计（`CORE_FEATURE_AUDIT.md`）：**38 COMPLETE / 1 PARTIAL (#38) / 0 MISSING**。
+所有 9 套测试套件（`test-core-fix-3.mjs`、`test-core-fix-2.mjs`、`test-core-fix-1.mjs`、`test-phase-d1.mjs`、`test-phase-d.mjs`、`test-phase-c1.mjs`、`test-phase-c.mjs`、`test-acceptance.mjs`、`npm run build`）全部 100% 通过。
+
+---
+
+## Core Fix Sprint 3 专项验收明细（2026-09-26）
+
+测试套件：`node test-core-fix-3.mjs`（100% PASS，0 报错）
+
+### 1. FIX 7：设施分类完整度
+- **FIX7-01 民宿 (Homestay)**：拆分独立 `homestay` 分类，高德官方编码 `100105|100200|100201`，图标 🏡，识别与检索独立运作（PASS）。
+- **FIX7-02 餐饮 (Food)**：官方编码 `050000|050100|...`，图标 🍴，自由词与类别彻底解耦（PASS）。
+- **FIX7-03 加油站 (Gas)**：官方编码 `010100|010101|010102`，图标 ⛽，检索无脏词污染（PASS）。
+- **FIX7-04 充电站 (EV)**：官方编码 `011100|011101`，图标 ⚡，展示真实地点与估算绕行，不伪造枪位数据（PASS）。
+- **FIX7-05 厕所 (Toilet)**：官方编码 `200300|200301|...`，图标 🚾，准确过滤公厕（PASS）。
+- **FIX7-06 停车场 (Parking)**：官方编码 `150900|150904|...`，图标 🅿️，准确过滤停车点（PASS）。
+- **FIX7-07 筛选联动**：8 种药丸按钮与列表、地图 Marker 实时同步过滤与增删（PASS）。
+- **截图**：`docs/core-fix-3/01-facility-categories.png`。
+
+### 2. FIX 8：地图 Marker → 设施列表双向联动
+- **FIX8-01 Marker 点击切回 Tab 与聚焦**：模拟或点击 Marker，系统自动切换至 facilities 面板，高亮卡片并平滑滚动到视野（PASS）。
+- **FIX8-02 同名 POI 区隔**：基于稳定唯一的 `poi.id` 进行选中绑定，杜绝同名混淆（PASS）。
+- **FIX8-03 Segment Detail 模式联动**：在路段详细查看（Focus 模式）下，Marker 点击与列表高亮依然平稳可靠（PASS）。
+- **FIX8-04 分类自适应与列表自动展开**：若当前分类过滤遮挡了被点击 Marker，自动修正为该类别或全部；若 POI 在 20 条以外，自动触发列表展开以挂载 DOM（PASS）。
+- **截图**：`docs/core-fix-3/02-marker-to-list.png`。
+
+### 3. FIX 9：真实住宿候选双日自驾测算与对比
+- **FIX9-01 双候选录入与弹窗展示**：随州酒店与丹江口酒店同时加入候选，横向展示（PASS）。
+- **FIX9-02 真实实路驱动对比**：两候选分别算出实际 Day1/Day2 里程与行车时间（如随州 Day1 320km/Day2 392km；丹江口 Day1 587km/Day2 126km），输出两日节奏比例条与客观可解释标签（PASS）。
+- **FIX9-03 RouteOption 变化重新测算**：方案切换生成不同缓存键，避免交叉污染（PASS）。
+- **FIX9-04 Waypoint 变化缓存失效**：增删停靠点时缓存失效，强制触发实路重测（PASS）。
+- **FIX9-05 API 失败诚信呈现**：遇异常坐标或网络故障展示“暂时无法获取实路数据”，0 捏造数据（PASS）。
+- **截图**：`docs/core-fix-3/03-overnight-real-comparison.png`。
+
+### 4. FIX 10：外部跳出治理
+- **FIX10-01 内部能力去外跳**：设施卡片具备完整距离与详情展示，彻底移除冗余“高德详情 ↗”外跳（PASS）。
+- **FIX10-02 一级导航调起**：中央控制区【开始导航】规范调用官方高德 URI 导航协议 `https://uri.amap.com/navigation?...`（PASS）。
+- **FIX10-03 视频外跳平台文案**：视频外跳按钮根据平台精细化区分：“打开 B站”、“打开 抖音”、“打开 小红书”（PASS）。
+- **截图**：`docs/core-fix-3/04-external-actions.png`。
 
 ---
 

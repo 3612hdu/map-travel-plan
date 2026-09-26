@@ -1,9 +1,14 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Bed, Check, Sparkles, AlertCircle, ArrowRight, RotateCcw } from 'lucide-react';
 import { useTripStore } from '../../store/useTripStore';
 import { formatDuration } from '../../utils/geo';
 import { OvernightStop } from '../../types/trip';
-import { getOvernightMetrics } from '../../utils/overnightMetrics';
+import {
+  getOvernightMetrics,
+  calculateCandidateComparisonMetrics,
+  getCachedCandidateComparisonMetrics,
+  CandidateComparisonMetrics
+} from '../../utils/overnightMetrics';
 
 export const OvernightDecisionModal: React.FC = () => {
   const {
@@ -16,8 +21,80 @@ export const OvernightDecisionModal: React.FC = () => {
     segments,
     selectedOptions,
     routeResults,
-    dayStartTimes
+    dayStartTimes,
+    customWaypoints,
+    preference
   } = useTripStore();
+
+  const [metricsMap, setMetricsMap] = useState<Record<string, CandidateComparisonMetrics>>({});
+  const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadMetrics() {
+      for (const candidate of overnightCandidates) {
+        // 先检查同步缓存
+        const cached = getCachedCandidateComparisonMetrics(
+          candidate,
+          selectedOptions,
+          customWaypoints,
+          preference,
+          dayStartTimes[1] || '12:00'
+        );
+        if (cached) {
+          setMetricsMap((prev) => ({ ...prev, [candidate.id]: cached }));
+          continue;
+        }
+
+        setLoadingMap((prev) => ({ ...prev, [candidate.id]: true }));
+        try {
+          const res = await calculateCandidateComparisonMetrics(
+            candidate,
+            selectedOptions,
+            customWaypoints,
+            preference,
+            dayStartTimes,
+            routeResults
+          );
+          if (!isCancelled) {
+            setMetricsMap((prev) => ({ ...prev, [candidate.id]: res }));
+          }
+        } catch (err) {
+          if (!isCancelled) {
+            setMetricsMap((prev) => ({
+              ...prev,
+              [candidate.id]: {
+                candidateId: candidate.id,
+                status: 'error',
+                errorMessage: '暂时无法获取实路数据'
+              }
+            }));
+          }
+        } finally {
+          if (!isCancelled) {
+            setLoadingMap((prev) => ({ ...prev, [candidate.id]: false }));
+          }
+        }
+      }
+    }
+
+    if (isComparisonModalOpen && overnightCandidates.length > 0) {
+      loadMetrics();
+    }
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    isComparisonModalOpen,
+    overnightCandidates,
+    selectedOptions,
+    customWaypoints,
+    preference,
+    dayStartTimes,
+    routeResults
+  ]);
 
   if (!isComparisonModalOpen) return null;
 
@@ -136,9 +213,34 @@ export const OvernightDecisionModal: React.FC = () => {
           {overnightCandidates.length === 0 && <div>暂无住宿候选。请从当前高德酒店搜索结果中点击“对比”。</div>}
           {overnightCandidates.map((candidate) => {
             const isCurrentChosen = overnightStop?.id === candidate.id || overnightStop?.name === candidate.name;
-            const metrics = getOvernightMetrics(candidate, overnightStop, segments, selectedOptions, routeResults, dayStartTimes);
-            const badgeStyle = getTagBadgeStyle(metrics?.label === '今天更轻松' ? 'today_relaxed' : metrics?.label === '明天更轻松' ? 'tomorrow_relaxed' : 'more_balanced');
+            const metrics = metricsMap[candidate.id] || getOvernightMetrics(
+              candidate,
+              overnightStop,
+              segments,
+              selectedOptions,
+              routeResults,
+              dayStartTimes,
+              customWaypoints,
+              preference
+            );
+            const isLoading = loadingMap[candidate.id];
+            const isError = metrics?.status === 'error';
+            const isSuccess = metrics?.status === 'success';
+
+            const badgeStyle = getTagBadgeStyle(
+              metrics?.label === '今天更轻松'
+                ? 'today_relaxed'
+                : metrics?.label === '明天更轻松'
+                ? 'tomorrow_relaxed'
+                : 'more_balanced'
+            );
             const day1Ratio = metrics?.ratio ?? 50;
+
+            const labelText = isError
+              ? '暂时无法获取实路数据 · 等待实路测算'
+              : isLoading
+              ? '实路测算中...'
+              : metrics?.label || '等待实路测算';
 
             return (
               <div
@@ -175,13 +277,13 @@ export const OvernightDecisionModal: React.FC = () => {
                     <span style={{
                       fontSize: '11px',
                       fontWeight: 800,
-                      color: badgeStyle.color,
-                      background: badgeStyle.bg,
-                      border: `1px solid ${badgeStyle.border}`,
+                      color: isError ? '#dc2626' : isLoading ? '#1875ff' : badgeStyle.color,
+                      background: isError ? '#fee2e2' : isLoading ? '#eff6ff' : badgeStyle.bg,
+                      border: `1px solid ${isError ? '#fca5a5' : isLoading ? '#bfdbfe' : badgeStyle.border}`,
                       padding: '2px 8px',
                       borderRadius: '99px'
                     }}>
-                      {metrics?.label || '等待实路测算'}
+                      {labelText}
                     </span>
                   </div>
 
@@ -203,7 +305,8 @@ export const OvernightDecisionModal: React.FC = () => {
                   lineHeight: 1.4,
                   border: '1px solid #f1f5f9'
                 }}>
-                  {candidate.source === 'amap-search' ? '候选来自当前高德酒店搜索。' : '候选由用户提供，酒店元数据未核验。'}{metrics ? '以下里程与时长来自当前实路。' : '选择后将测算两日实路。'}
+                  {candidate.source === 'amap-search' ? '候选来自当前高德酒店搜索。' : '候选由用户提供，酒店元数据未核验。'}
+                  {isSuccess ? `以下里程与时长来自当前实路。${metrics.reason || ''}` : isError ? '当前高德算路暂时无法获取实路数据。' : '选择或加入后将测算两日实路。'}
                 </div>
 
                 {/* 今日与明日驾驶数据对比 */}
@@ -221,15 +324,46 @@ export const OvernightDecisionModal: React.FC = () => {
                     <div style={{ fontSize: '10.5px', color: '#64748b', fontWeight: 600 }}>
                       今天驾驶 (Day 1)
                     </div>
-                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
-                      {metrics ? `${metrics.todayKm} km` : '等待路线数据'}
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#059669', fontWeight: 700, marginTop: '1px' }}>
-                      {metrics ? formatDuration(metrics.todaySeconds) : '等待路线数据'}
-                    </div>
-                    <div style={{ fontSize: '10.5px', color: '#4338ca', marginTop: '2px', fontWeight: 700 }}>
-                      预计 {metrics ? `${metrics.eta} 抵达（仅含驾驶）` : '抵达时间待测算'}
-                    </div>
+                    {isError ? (
+                      <>
+                        <div style={{ fontSize: '11.5px', color: '#dc2626', fontWeight: 700, marginTop: '4px' }}>
+                          暂时无法获取实路数据
+                        </div>
+                        <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '2px' }}>
+                          预计抵达：等待实路测算
+                        </div>
+                      </>
+                    ) : isLoading ? (
+                      <>
+                        <div style={{ fontSize: '11.5px', color: '#1875ff', fontWeight: 600, marginTop: '4px' }}>
+                          实路测算中...
+                        </div>
+                        <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '2px' }}>
+                          预计抵达：测算中...
+                        </div>
+                      </>
+                    ) : isSuccess && metrics.todayKm != null ? (
+                      <>
+                        <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
+                          {metrics.todayKm} km
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#059669', fontWeight: 700, marginTop: '1px' }}>
+                          {formatDuration(metrics.todaySeconds || 0)}
+                        </div>
+                        <div style={{ fontSize: '10.5px', color: '#4338ca', marginTop: '2px', fontWeight: 700 }}>
+                          预计 {metrics.eta} 抵达（仅含驾驶）
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '4px' }}>
+                          等待路线数据
+                        </div>
+                        <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '2px' }}>
+                          预计抵达时间待测算
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* 明日 */}
@@ -237,29 +371,47 @@ export const OvernightDecisionModal: React.FC = () => {
                     <div style={{ fontSize: '10.5px', color: '#64748b', fontWeight: 600 }}>
                       明日剩余 (Day 2)
                     </div>
-                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
-                      {metrics ? `${metrics.tomorrowKm} km` : '等待路线数据'}
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#059669', fontWeight: 700, marginTop: '1px' }}>
-                      {metrics ? formatDuration(metrics.tomorrowSeconds) : '等待路线数据'}
-                    </div>
-                    <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '2px' }}>
-                      终点: 郧阳区
-                    </div>
+                    {isError ? (
+                      <div style={{ fontSize: '11.5px', color: '#dc2626', fontWeight: 700, marginTop: '4px' }}>
+                        暂时无法获取实路数据
+                      </div>
+                    ) : isLoading ? (
+                      <div style={{ fontSize: '11.5px', color: '#1875ff', fontWeight: 600, marginTop: '4px' }}>
+                        实路测算中...
+                      </div>
+                    ) : isSuccess && metrics.tomorrowKm != null ? (
+                      <>
+                        <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
+                          {metrics.tomorrowKm} km
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#059669', fontWeight: 700, marginTop: '1px' }}>
+                          {formatDuration(metrics.tomorrowSeconds || 0)}
+                        </div>
+                        <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '2px' }}>
+                          终点: 郧阳区
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '4px' }}>
+                        等待路线数据
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* 两日节奏比例条 */}
-                {metrics && <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#64748b', marginBottom: '3px' }}>
-                    <span>Day 1 ({day1Ratio}%)</span>
-                    <span>Day 2 ({100 - day1Ratio}%)</span>
+                {isSuccess && metrics && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#64748b', marginBottom: '3px' }}>
+                      <span>Day 1 ({day1Ratio}%)</span>
+                      <span>Day 2 ({100 - day1Ratio}%)</span>
+                    </div>
+                    <div style={{ display: 'flex', height: '6px', borderRadius: '99px', overflow: 'hidden', background: '#e2e8f0' }}>
+                      <div style={{ width: `${day1Ratio}%`, background: '#ea580c' }} />
+                      <div style={{ width: `${100 - day1Ratio}%`, background: '#059669' }} />
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', height: '6px', borderRadius: '99px', overflow: 'hidden', background: '#e2e8f0' }}>
-                    <div style={{ width: `${day1Ratio}%`, background: '#ea580c' }} />
-                    <div style={{ width: `${100 - day1Ratio}%`, background: '#059669' }} />
-                  </div>
-                </div>}
+                )}
 
                 {/* 选用按钮 */}
                 <div style={{ marginTop: 'auto', paddingTop: '4px' }}>

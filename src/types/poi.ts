@@ -1,6 +1,6 @@
 // 设施与 POI 数据类型
 
-export type FacilityCategory = 'all' | 'hotel' | 'food' | 'gas' | 'ev' | 'toilet' | 'parking';
+export type FacilityCategory = 'all' | 'hotel' | 'homestay' | 'food' | 'gas' | 'ev' | 'toilet' | 'parking';
 
 export interface RoutePoi {
   id: string;

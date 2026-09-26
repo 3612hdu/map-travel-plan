@@ -47,29 +47,35 @@ class AMapService {
     this.inFlightPlans.clear();
   }
 
-  // 异步加载并初始化高德 JS API
+  // 异步加载并初始化高德 JS API (含自动重试保障)
   async load(): Promise<any> {
     if (this.isLoaded && this.api) return this.api;
     if (this.loadPromise) return this.loadPromise;
 
     initAMapSecurity();
 
-    this.loadPromise = AMapLoader.load({
-      key: AMAP_CONFIG.key,
-      version: AMAP_CONFIG.version,
-      plugins: AMAP_CONFIG.plugins
-    })
-      .then((api) => {
+    const doLoad = async (retries = 2): Promise<any> => {
+      try {
+        const api = await AMapLoader.load({
+          key: AMAP_CONFIG.key,
+          version: AMAP_CONFIG.version,
+          plugins: AMAP_CONFIG.plugins
+        });
         this.api = api;
         this.isLoaded = true;
         return api;
-      })
-      .catch((err) => {
+      } catch (err) {
+        if (retries > 0) {
+          await new Promise((r) => setTimeout(r, 800));
+          return doLoad(retries - 1);
+        }
         this.loadPromise = null;
         console.error('高德 JS API 加载失败:', err);
         throw err;
-      });
+      }
+    };
 
+    this.loadPromise = doLoad();
     return this.loadPromise;
   }
 
@@ -529,6 +535,7 @@ class AMapService {
     // 分类样式配置
     const categoryTheme: Record<string, { emoji: string; color: string; bg: string }> = {
       hotel: { emoji: '🏨', color: '#1d4ed8', bg: '#eff6ff' },
+      homestay: { emoji: '🏡', color: '#0d9488', bg: '#f0fdfa' },
       food: { emoji: '🍴', color: '#e11d48', bg: '#fff1f2' },
       gas: { emoji: '⛽', color: '#d97706', bg: '#fffbeb' },
       ev: { emoji: '⚡', color: '#059669', bg: '#ecfdf5' },

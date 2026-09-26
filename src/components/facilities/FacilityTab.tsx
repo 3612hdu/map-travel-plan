@@ -21,6 +21,7 @@ export const FacilityTab: React.FC = () => {
     selectedOptions,
     routeResults,
     searchQuery,
+    setSearchQuery,
     searchVersion,
     searchScope,
     showFacilitiesOnMap,
@@ -118,25 +119,21 @@ export const FacilityTab: React.FC = () => {
     routePathVersion
   ]);
 
-  // 当地图 Marker 被点击选中时，右侧卡片列表平滑滚动并高亮
-  useEffect(() => {
-    if (selectedPoiId) {
-      const el = document.getElementById(`facility-card-${selectedPoiId}`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-    }
-  }, [selectedPoiId]);
-
   const categories: { key: FacilityCategory; label: string; emoji: string }[] = [
     { key: 'all', label: '全部', emoji: '📍' },
-    { key: 'hotel', label: '酒店/民宿', emoji: '🏨' },
+    { key: 'hotel', label: '酒店', emoji: '🏨' },
+    { key: 'homestay', label: '民宿', emoji: '🏡' },
     { key: 'food', label: '餐饮', emoji: '🍴' },
     { key: 'gas', label: '加油站', emoji: '⛽' },
     { key: 'ev', label: '充电站', emoji: '⚡' },
     { key: 'toilet', label: '厕所', emoji: '🚾' },
     { key: 'parking', label: '停车场', emoji: '🅿️' }
   ];
+
+  const filteredFacilities = useMemo(() => {
+    if (selectedCategory === 'all') return facilities;
+    return facilities.filter((p) => p.category === selectedCategory);
+  }, [facilities, selectedCategory]);
 
   const getCategoryCount = (cat: FacilityCategory) => {
     if (cat === 'all') return facilities.length;
@@ -145,9 +142,26 @@ export const FacilityTab: React.FC = () => {
 
   // 结果数量与排序：默认仅展示最相关的 Top 20，避免直接铺满 100+ 条
   const displayedFacilities = useMemo(() => {
-    if (isExpanded) return facilities;
-    return facilities.slice(0, DEFAULT_PAGE_SIZE);
-  }, [facilities, isExpanded]);
+    if (isExpanded) return filteredFacilities;
+    return filteredFacilities.slice(0, DEFAULT_PAGE_SIZE);
+  }, [filteredFacilities, isExpanded]);
+
+  // 当地图 Marker 被点击选中时，右侧卡片列表平滑滚动并高亮
+  useEffect(() => {
+    if (selectedPoiId) {
+      const targetIndex = filteredFacilities.findIndex((p) => p.id === selectedPoiId);
+      if (targetIndex >= DEFAULT_PAGE_SIZE && !isExpanded) {
+        setIsExpanded(true);
+      }
+      const timer = setTimeout(() => {
+        const el = document.getElementById(`facility-card-${selectedPoiId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }, 60);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedPoiId, filteredFacilities, isExpanded]);
 
   // 全程模式下按 Day 与 Segment 分组 (赋予旅行上下文)
   const groupedTripFacilities = useMemo(() => {
@@ -190,6 +204,14 @@ export const FacilityTab: React.FC = () => {
     };
   }, [searchScope, displayedFacilities, segments]);
 
+  const handleCategorySelect = (catKey: FacilityCategory) => {
+    setSelectedCategory(catKey);
+    // 若当前输入词属于其他分类名称，清空以让分类默认关键词生效
+    if (searchQuery && Object.values(FACILITY_CATEGORIES).some((c) => c.label === searchQuery || c.key === searchQuery)) {
+      setSearchQuery('');
+    }
+  };
+
   return (
     <div className="right-tab-content">
       {/* 分类药丸过滤条 */}
@@ -199,7 +221,7 @@ export const FacilityTab: React.FC = () => {
             key={c.key}
             type="button"
             className={`filter-pill ${selectedCategory === c.key ? 'active' : ''}`}
-            onClick={() => setSelectedCategory(c.key)}
+            onClick={() => handleCategorySelect(c.key)}
           >
             <span>{c.emoji}</span>
             <span>{c.label}</span>
@@ -224,9 +246,9 @@ export const FacilityTab: React.FC = () => {
         <div>
           <span>
             {searchScope === 'trip' ? '全程自驾走廊' : currentSeg?.title} · 共{' '}
-            <strong style={{ color: '#0f172a' }}>{facilities.length}</strong> 处顺路设施
+            <strong style={{ color: '#0f172a' }}>{filteredFacilities.length}</strong> 处顺路设施
           </span>
-          {facilities.length > DEFAULT_PAGE_SIZE && !isExpanded && (
+          {filteredFacilities.length > DEFAULT_PAGE_SIZE && !isExpanded && (
             <span style={{ color: '#64748b', marginLeft: '4px' }}>
               (默认展示前 {DEFAULT_PAGE_SIZE} 处)
             </span>
@@ -260,7 +282,7 @@ export const FacilityTab: React.FC = () => {
 
       {/* 设施卡片滚动列表 */}
       <div className="facilities-scroll-list">
-        {facilities.length === 0 ? (
+        {filteredFacilities.length === 0 ? (
           <div
             style={{
               padding: '40px 20px',
@@ -393,7 +415,7 @@ export const FacilityTab: React.FC = () => {
         )}
 
         {/* 展开全部结果 / 收起按钮 (结果超过 20 条时呈现) */}
-        {facilities.length > DEFAULT_PAGE_SIZE && (
+        {filteredFacilities.length > DEFAULT_PAGE_SIZE && (
           <div style={{ padding: '12px 14px', textAlign: 'center' }}>
             <button
               type="button"
@@ -426,7 +448,7 @@ export const FacilityTab: React.FC = () => {
                 <>
                   <ChevronDown size={14} />
                   <span>
-                    查看全部结果 (共 {facilities.length} 处 · 已按综合相关度智能排序)
+                    查看全部结果 (共 {filteredFacilities.length} 处 · 已按综合相关度智能排序)
                   </span>
                 </>
               )}

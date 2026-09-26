@@ -46,6 +46,8 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ poi, isSelected, onS
     switch (poi.category) {
       case 'hotel':
         return <Bed size={15} />;
+      case 'homestay':
+        return <span style={{ fontSize: '13px' }}>🏡</span>;
       case 'gas':
         return <Fuel size={15} />;
       case 'ev':
@@ -121,7 +123,7 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ poi, isSelected, onS
     }
   };
 
-  const isHotel = poi.category === 'hotel' || poi.name.includes('酒店') || poi.name.includes('宾馆') || poi.name.includes('民宿');
+  const isHotel = poi.category === 'hotel' || poi.category === 'homestay' || poi.name.includes('酒店') || poi.name.includes('宾馆') || poi.name.includes('民宿') || poi.name.includes('客栈');
 
   const makeCandidate = (): OvernightStop => {
     const detectedCity = poi.address.match(/(.+?[市区县])/)?.[1] || targetSeg?.title.split('→')[1]?.trim() || '湖北';
@@ -326,17 +328,6 @@ export const FacilityCard: React.FC<FacilityCardProps> = ({ poi, isSelected, onS
               <span>{isCalculatingDetour ? '测算中...' : '实路测算'}</span>
             </button>
           )}
-
-          <a
-            href={`https://uri.amap.com/marker?position=${poi.coord.join(',')}&name=${encodeURIComponent(poi.name)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-facility-action secondary"
-            onClick={(e) => e.stopPropagation()}
-            style={{ textDecoration: 'none' }}
-          >
-            高德详情 ↗
-          </a>
         </div>
       </div>
     </div>

@@ -9,11 +9,11 @@
   },
   "TEST 05": {
     "status": "PASS",
-    "evidence": "3张路线方案渲染完成: [{\"title\":\"普通路线\",\"metrics\":\"120 km · 2h19m · ¥0\",\"isChosen\":false},{\"title\":\"环库风景路线★ 推荐\",\"metrics\":\"127 km · 2h31m · ¥0+6 km · +11 min\",\"isChosen\":true},{\"title\":\"风景折中路线\",\"metrics\":\"127 km · 2h30m · ¥0+6 km · +11 min\",\"isChosen\":false}]"
+    "evidence": "3张路线方案渲染完成: [{\"title\":\"普通路线\",\"metrics\":\"120 km · 2h14m · ¥0\",\"isChosen\":false},{\"title\":\"环库风景路线★ 推荐\",\"metrics\":\"127 km · 2h27m · ¥0+6 km · +13 min\",\"isChosen\":true},{\"title\":\"风景折中路线\",\"metrics\":\"122 km · 2h18m · ¥0+1 km · +4 min\",\"isChosen\":false}]"
   },
   "TEST 03": {
     "status": "PASS",
-    "evidence": "统计指标展示: [{\"label\":\"全程实路总里程\",\"val\":\"711 km\"},{\"label\":\"预计驾驶\",\"val\":\"15h22m\"},{\"label\":\"预估收费\",\"val\":\"¥0\"},{\"label\":\"风景路段\",\"val\":\"约 136 km\"}]"
+    "evidence": "统计指标展示: [{\"label\":\"全程实路总里程\",\"val\":\"711 km\"},{\"label\":\"预计驾驶\",\"val\":\"14h39m\"},{\"label\":\"预估收费\",\"val\":\"¥0\"},{\"label\":\"风景路段\",\"val\":\"127 km\"}]"
   },
   "TEST 04": {
     "status": "PASS",

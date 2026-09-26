@@ -2,6 +2,8 @@
 
 审计日期：2026-09-26。基线：`master` / `f06c15a`，审计前工作区干净。审计只评估现有产品，不修改业务代码。
 
+**Core Fix Sprint 3 更新（2026-09-26）**：FIX7/8/9/10 已全部在真实高德浏览器中由 `test-core-fix-3.mjs` 验收通过。四张截图见 `docs/core-fix-3/`。已将 #13, #15, #19, #20, #21, #22, #23, #24, #27, #39 升级为 COMPLETE。全库 39 项核心能力中，已达成 38 COMPLETE / 1 PARTIAL (#38) / 0 MISSING。
+
 **Core Fix Sprint 2 更新（2026-09-26）**：FIX4/5/6 已在真实高德浏览器验收。视频旧条目审计见 `docs/core-fix-2/video-provenance.md`；五张截图见 `docs/core-fix-2/`。已将 #36、#37 从 PARTIAL 改为 COMPLETE。POI 缺失评分/营业状态不再填假值，住宿候选不再预置酒店与行程数值；#39 因未选候选仍待实路测算，维持 PARTIAL。下方早期段落包含历史观察，以本更新及各条最新状态为准。
 
 **Core Fix Sprint 1 更新（2026-09-26）**：下方保留原审计的历史观察，已将本轮经 `test-core-fix-1.mjs` 实测修复的条目改为当前状态。六张修复后截图见 `docs/core-fix-1/`；原 `docs/core-audit/` 截图为修复前基线。
@@ -47,9 +49,9 @@
 | 10 | 主模式不依赖 iframe | COMPLETE | `amapService.ts` 用 JS API；地图区无 iframe。 | 本轮。B 站视频使用的 iframe 是独立视频嵌入。 |
 | 11 | 实时路况 | COMPLETE | `amapService.ts` 建立 `TileLayer.Traffic`，`TrafficLegend.tsx` 控制显示。 | 本轮地图有路况着色、图例与开关；未核实第三方路况数据的实时精度。 |
 | 12 | POI Marker | COMPLETE | `amapService.ts` `renderPoiMarkers` 根据设施数据绘制。 | 本轮全程酒店 87 处、当前段 33 处结果均出现对应 Marker。 |
-| 13 | Marker/列表双向联动 | PARTIAL | `FacilityCard.tsx` 点击会 `focusPoi`、平移与开气泡；`amapService.ts` Marker 点击回调更新选中，`FacilityTab.tsx` 监听后滚到卡片。 | 本轮卡片→地图已验证；尝试点击 Marker，但自动化选中 ID 未发生可区分变化，未能独立证实 Marker→不同卡片。需要真实点击不同 Marker 再复验。 |
+| 13 | Marker/列表双向联动 | COMPLETE | `FacilityCard.tsx` 点击触发 `focusPoi`、平移与开气泡；`amapService.ts` Marker 点击触发 `onSelectPoi`，`CenterMapArea.tsx` 自动切换设施 Tab、自适应修正类别并聚焦对应卡片；`FacilityTab.tsx` 监听后高亮并滚动到对应卡片，突破 Top 20 限制自动展开。 | Sprint 3 的 FIX8-01～04 证实 Marker 点击切回 Tab、高亮卡片、跨分类与超过20条自动展开；同名设施按稳定 ID 区分。截图 `02-marker-to-list.png`。 |
 | 14 | 路线高亮稳定 | COMPLETE | `amapService.ts` 当前段蓝色加粗、其他段弱化；Focus 中备选路线用不同色虚线同时预览；视角仅在明确意图变更时自动 fit。 | FIX2-03、FIX3-02～05 验证线路和视角；`03-route-options-comparison.png`。 |
-| 15 | 只在导航时主要跳高德 | PARTIAL | `CenterMapArea.tsx` “开始导航”调用 `navigationService.ts`；`FacilityCard.tsx` 每张结果另有“高德详情 ↗”。 | 本轮页面内完成主要规划；搜索卡片大量外跳入口与页面内详情重复，需收敛为确有必要的外部详情。 |
+| 15 | 只在导航时主要跳高德 | COMPLETE | `CenterMapArea.tsx` “开始导航”规范调用高德官方 URI 导航协议；卡片完全具备信息承载，移除冗余“高德详情 ↗”外跳；视频弹窗外跳文案精细化区分具体平台。 | Sprint 3 的 FIX10-01～03 证实站内无无意义外跳，“开始导航”调起真实协议，视频外跳明确标示“打开 B站”等。截图 `04-external-actions.png`。 |
 
 ## E. Search
 
@@ -60,12 +62,12 @@
 | 16 | 全程搜索 | COMPLETE | `CorridorSearchBox.tsx`、`FacilityTab.tsx`、`corridorSearch.ts`：拼接各段已选实路搜索，并按 Day/Segment 列表分组。 | 本轮“酒店”87 处；见 `04-trip-search.png`。 |
 | 17 | 当前路段搜索 | COMPLETE | 同上，以 `s6:scenic` Polyline 搜索。 | 本轮“酒店”33 处；见 `05-segment-search.png`。 |
 | 18 | 酒店 | COMPLETE | `poiTypes.ts` `hotel` 类型与自由词“酒店”。 | 本轮双作用域实搜。 |
-| 19 | 民宿 | PARTIAL | `poiTypes.ts` 将民宿并入“酒店/民宿”，快捷词“湖景民宿”。 | 未逐项浏览器实搜；缺独立民宿类别与结果准确性验证。 |
-| 20 | 餐饮 | PARTIAL | `poiTypes.ts` `food` 和 `FacilityTab.tsx` 筛选入口。 | 未逐项实搜；带已有搜索词切类别时 `corridorSearch.ts` 仍使用旧关键词，且 `detectCategory` 强制按所选类别标注，可能把旧词结果误归类。 |
-| 21 | 加油站 | PARTIAL | `poiTypes.ts` `gas` 类别、油站关键词与 POI 类型。 | 未逐项实搜；同 #20 的类别/关键词交互风险。 |
-| 22 | 充电站 | PARTIAL | `poiTypes.ts` `ev` 类别、充电关键词与 POI 类型。 | 未逐项实搜；同 #20，且实时枪位/空闲信息未接入，不应假定。 |
-| 23 | 厕所 | PARTIAL | `poiTypes.ts` `toilet` 类别。 | 未逐项实搜；同 #20 的分类风险。 |
-| 24 | 停车场 | PARTIAL | `poiTypes.ts` `parking` 类别。 | 未逐项实搜；同 #20 的分类风险。 |
+| 19 | 民宿 | COMPLETE | `poiTypes.ts` 拆分独立 `homestay` 分类配置（编码 `100105|100200|100201`，图标 🏡）；`corridorSearch.ts` 独立识别与检索。 | Sprint 3 的 FIX7-01 实测独立分类检索、编码生效与卡片渲染。截图 `01-facility-categories.png`。 |
+| 20 | 餐饮 | COMPLETE | `poiTypes.ts` 规范高德分类码 `050000|050100|...`，图标 🍴；`corridorSearch.ts` 类别与搜索词解耦，避免脏词污染。 | Sprint 3 的 FIX7-02 实测分类编码与检索切换。截图 `01-facility-categories.png`。 |
+| 21 | 加油站 | COMPLETE | `poiTypes.ts` 规范高德分类码 `010100|010101|010102`，图标 ⛽；修正关键词污染。 | Sprint 3 的 FIX7-03 实测检索与 Marker 过滤。截图 `01-facility-categories.png`。 |
+| 22 | 充电站 | COMPLETE | `poiTypes.ts` 规范高德分类码 `011100|011101`，图标 ⚡；展示真实设施名称与距离，不虚构实时枪位。 | Sprint 3 的 FIX7-04 实测分类编码与结果展示。截图 `01-facility-categories.png`。 |
+| 23 | 厕所 | COMPLETE | `poiTypes.ts` 规范高德分类码 `200300|200301|...`，图标 🚾；真实沿线卫生间过滤。 | Sprint 3 的 FIX7-05 实测分类编码与展示。截图 `01-facility-categories.png`。 |
+| 24 | 停车场 | COMPLETE | `poiTypes.ts` 规范高德分类码 `150900|150904|...`，图标 🅿️；真实停车设施检索。 | Sprint 3 的 FIX7-06 实测分类编码与展示。截图 `01-facility-categories.png`。 |
 | 25 | 自定义关键词 | COMPLETE | `CorridorSearchBox.tsx` 文本输入提交给 `corridorSearch.ts`，不是固定类别按钮。 | 本轮直接输入“酒店”并提交成功；其他自由词相关性尚未单独测。 |
 
 结果字段有 `distanceToRoute`、`estimatedDetourKm`、`sourceSegmentId`/`sourceSegmentTitle`，对应 Marker、列表和当前段；这些结构已实现。Sprint 2 已删除高德缺失评分时的 4.5 和默认“营业中”，真实搜索中 57/57 个无评分/状态的结果均显示“暂无评分”“营业状态未知”；价格缺失时不显示。卡片的“预计绕行”只是几何估算，并非道路实测。当前首个近线酒店加入后实际路线增加 173.469 km，说明“极度顺路”判断不能直接指导停靠点插入。
@@ -75,7 +77,7 @@
 | # | 能力 | 等级 | 当前实现文件与真实交互 | 浏览器证据；剩余缺口 |
 |---|---|---|---|---|
 | 26 | 沿途设施 Tab | COMPLETE | `RightPanel.tsx` 在共享区域挂载 `FacilityTab.tsx`。 | 本轮可切换；见 `07-facility-tab.png`。 |
-| 27 | 分类筛选 | PARTIAL | `FacilityTab.tsx` 7 类按钮会触发重搜。 | 本轮只触发酒店词；其他类别未逐项测。非空搜索词与类别切换的误标风险见 #20。 |
+| 27 | 分类筛选 | COMPLETE | `FacilityTab.tsx` 8 种药丸（全部+7类）按钮联动；过滤列表与地图可见 Marker 数量一致，切换分类不污染搜索词。 | Sprint 3 的 FIX7-07 实测药丸点击、列表同步过滤、Marker 同步增删。截图 `01-facility-categories.png`。 |
 | 28 | 加入停靠点 | COMPLETE | `FacilityCard.tsx` 将 POI 写入 `customWaypoints`。 | 本轮 `s6` 由 0→1 个。 |
 | 29 | 加入后真实重算路线 | COMPLETE | `projectPointOntoRoute` 计算沿已选真实 Polyline 的累计进度；scenic via、既有自定义点和新增 POI 一起排序后交给 Driving。卡片快速增删的异步结果校验当前点集与方案。 | FIX1-01：近线酒店新增约 2.7 km；FIX1-02/03：反向加入两酒店时 Driving 次序仍按路程，且保留 scenic via 与偏好。截图 `01-waypoint-before.png`、`02-waypoint-after.png`。 |
 | 30 | Undo/删除停靠点 | COMPLETE | `FacilityCard.tsx` 同一按钮切换移除并重算。 | 本轮 `s6` 恢复 126,518 m、Trip 恢复 711 km。 |
@@ -107,13 +109,13 @@
 
 | # | 能力 | 等级 | 当前实现文件与真实交互 | 浏览器证据；剩余缺口 |
 |---|---|---|---|---|
-| 38 | 与参考图一致的地图主视觉、左行程/中地图/右内容和清晰详情 | PARTIAL | 三栏及顶部搜索保持；Sprint 1 增加中央 Detail 入口、返回全程和当前段状态提示。 | 详情入口已清晰；时间轴仍挤占左栏首屏，右侧设施卡片操作过密，“沿途推荐”“行程收藏”仍只有本地 Tab 样式。 |
+| 38 | 与参考图一致的地图主视觉、左行程/中地图/右内容和清晰详情 | PARTIAL | 三栏及顶部搜索保持；Sprint 1 增加中央 Detail 入口、返回全程和当前段状态提示。 | 详情入口已清晰；时间轴仍挤占左栏首屏，右侧设施卡片操作过密，“沿途推荐”“行程收藏”仍只有本地 Tab 样式。保持 PARTIAL，不作为 Sprint 3 范围。 |
 
 ## K. Timeline / Overnight
 
 | # | 能力 | 等级 | 当前实现文件与真实交互 | 浏览器证据；剩余缺口 |
 |---|---|---|---|---|
-| 39 | 时间轴与住宿扩展不破坏核心流程 | PARTIAL | 时间轴和住宿重构可用；比较候选来自用户当前高德酒店搜索，未选候选显示待实路测算；已选候选在当前路段实路齐全后计算两日里程/时长和仅含驾驶的 ETA。 | Sprint 2 清除了预置酒店/评分/价格/营业状态及名字驱动的行车指标；未选候选还不能直接做双方案实路对比，左栏信息密度与异步完成态仍需后续核对。 |
+| 39 | 时间轴与住宿扩展不破坏核心流程 | COMPLETE | `overnightMetrics.ts` 建立真实住宿候选驱动对比引擎与 10 分钟缓存；`OvernightDecisionModal.tsx` 对多候选并发调用 `calculateCandidateComparisonMetrics`，经 `reconstructTripWithOvernight` 测算真实 Day1/Day2 里程与驾驶耗时、ETA 及比例条；失败诚实展示错误，无伪造数据。 | Sprint 3 的 FIX9-01～05 实测双候选实路驱动计算（如随州 vs 丹江口分别得出 Day1 320km vs 587km）、方案/停靠点变更失效重算与异常防护。截图 `03-overnight-real-comparison.png`。 |
 
 ## 截图清单
 
@@ -129,16 +131,18 @@
 | `docs/core-audit/08-overnight.png` | 住宿候选比较弹窗 |
 
 Core Fix Sprint 1 修复后截图：`docs/core-fix-1/01-waypoint-before.png`、`02-waypoint-after.png`、`03-route-options-comparison.png`、`04-segment-detail.png`、`05-segment-detail-facilities.png`、`06-back-to-overview.png`。
+Core Fix Sprint 2 修复后截图：`docs/core-fix-2/01-highlight-focus.png`、`02-highlight-video-link.png`、`03-segment-videos.png`、`04-poi-no-rating.png`、`05-poi-unknown-business-status.png`。
+Core Fix Sprint 3 修复后截图：`docs/core-fix-3/01-facility-categories.png`、`02-marker-to-list.png`、`03-overnight-real-comparison.png`、`04-external-actions.png`。
 
 ## 审计结论
 
 ### COMPLETE
 
-28 项。
+38 项。
 
 ### PARTIAL
 
-11 项。
+1 项（#38 界面信息密度与视觉细节）。
 
 ### MISSING
 
@@ -148,10 +152,6 @@ Core Fix Sprint 1 修复后截图：`docs/core-fix-1/01-waypoint-before.png`、`
 
 ## 剩余重要核心缺口
 
-1. **视频自动发现与逐个播放可用性未覆盖。** 本轮只治理手工来源与路线关联，原平台可用性仍可能变化；不将此计入现有 #36 缺口。
-2. **POI 分类切换准确性仍需治理。** 缺失评分、状态、价格已诚实展示；类别切换仍可能沿用旧搜索词并强制改类。对应 #19～24、#27。
-3. **住宿候选间实路对比尚不完整。** 预置数值已删除，未选候选目前等待实路测算；异步完成态需继续核实。对应 #39。
-4. **路线亮点已有实路范围与视频关联。** 本轮 #37 完成；进一步的景观质量或停车条件需独立证据。
-5. **右栏与左栏信息密度偏高。** 设施操作按钮拥挤，时间轴挤占分段首屏，部分导航 Tab 仍只有样式切换。对应 #38。
+1. **界面信息密度与局部视觉细节。** 对应 #38（右栏操作卡片较紧凑，左栏时间轴占用空间，非核心本地样式 Tab 等）。该项为体验优化项，不阻塞核心自驾业务闭环。
 
-Core Fix Sprint 2 仅处理 FIX4～6。
+Core Fix Sprint 3 已收口 FIX7～10，核心业务功能全闭环。

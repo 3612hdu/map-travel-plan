@@ -213,7 +213,12 @@ export async function searchCorridorPois(
 
   const catConfig = FACILITY_CATEGORIES[category] || FACILITY_CATEGORIES.all;
   const trimmedKeyword = keywordOrCategory ? keywordOrCategory.trim() : '';
-  const searchWord = trimmedKeyword || (category !== 'all' ? catConfig.keywords.split('|')[0] : '加油站|充电站|酒店');
+  const isKeywordMatchingOtherCategory = trimmedKeyword && Object.values(FACILITY_CATEGORIES).some(
+    (cg) => cg.key !== category && (cg.label === trimmedKeyword || cg.key === trimmedKeyword)
+  );
+  const searchWord = (category !== 'all' && (!trimmedKeyword || isKeywordMatchingOtherCategory))
+    ? catConfig.keywords.split('|')[0]
+    : trimmedKeyword || (category !== 'all' ? catConfig.keywords.split('|')[0] : '加油站|充电站|酒店|餐厅|民宿');
 
   const cacheKey = buildCacheKey(path, scope, category, searchWord, segmentId);
 
@@ -264,7 +269,7 @@ export async function searchCorridorPois(
         extensions: 'base'
       };
 
-      if (!trimmedKeyword && catConfig.amapType) {
+      if (catConfig.amapType) {
         placeSearchConfig.type = catConfig.amapType;
       }
 
@@ -448,10 +453,11 @@ export async function calculateRealDetour(
 // =========================================================================
 // 6. 辅助分类识别与 Mock 回退
 // =========================================================================
-function detectCategory(rawText: string, fallback: FacilityCategory): FacilityCategory {
+export function detectCategory(rawText: string, fallback: FacilityCategory): FacilityCategory {
   if (fallback !== 'all') return fallback;
-  if (/酒店|宾馆|民宿|客栈|度假|居|公寓/.test(rawText)) return 'hotel';
-  if (/餐|饭店|菜|农家|小吃|美食|面|酒楼/.test(rawText)) return 'food';
+  if (/民宿|客栈|农家客栈|农家乐住宿|青年旅舍|青旅|木屋/.test(rawText)) return 'homestay';
+  if (/酒店|宾馆|度假村|大酒店|饭店(?!.*菜)/.test(rawText)) return 'hotel';
+  if (/餐|饭店|菜|农家乐|小吃|美食|面|酒楼|火锅|私房菜/.test(rawText)) return 'food';
   if (/油|石化|石油|加气|壳牌/.test(rawText)) return 'gas';
   if (/电|桩|特来电|充电|新能源|超充/.test(rawText)) return 'ev';
   if (/厕|洗手间|公厕|WC/.test(rawText)) return 'toilet';

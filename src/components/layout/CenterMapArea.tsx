@@ -25,8 +25,10 @@ export const CenterMapArea: React.FC = () => {
     customWaypoints,
     setRouteResult,
     facilities,
+    selectedCategory,
     selectedPoiId,
     focusPoi,
+    setActiveContentTab,
     addWaypoint,
     preference,
     showFacilitiesOnMap,
@@ -141,7 +143,7 @@ export const CenterMapArea: React.FC = () => {
     if (fitted) appliedViewportRevision.current = viewportRevision;
   }, [segments, selectedOptions, routeResults, activeSegmentId, activeDay, mapMode, viewportRevision, overnightStop, activeHighlightId]);
 
-  // 当设施 POIs 变化或选中状态变化时，渲染地图 POI Marker
+  // 当设施 POIs 变化、选中分类或选中状态变化时，渲染地图 POI Marker
   useEffect(() => {
     const map = amapService.getMap();
     if (!map) return;
@@ -151,10 +153,24 @@ export const CenterMapArea: React.FC = () => {
       return;
     }
 
+    const visiblePois = selectedCategory === 'all'
+      ? facilities
+      : facilities.filter((p) => p.category === selectedCategory);
+
     amapService.renderPoiMarkers(
-      facilities,
+      visiblePois,
       selectedPoiId,
       (poi) => {
+        // FIX 8 Marker → List 双向联动:
+        // 1. 获取稳定 POI ID (poi.id)
+        // 2. 自动切换右侧到：沿途设施
+        setActiveContentTab('facilities');
+        // 3. 必要时切换对应分类，保证列表可见
+        const state = useTripStore.getState();
+        if (state.selectedCategory !== 'all' && state.selectedCategory !== poi.category) {
+          state.setSelectedCategory('all');
+        }
+        // 4. 聚焦该 POI (触发 Card scrollIntoView 与卡片高亮)
         focusPoi(poi.id);
       },
       (poi) => {
@@ -192,7 +208,7 @@ export const CenterMapArea: React.FC = () => {
         }
       }
     );
-  }, [facilities, selectedPoiId, currentSeg, customWaypoints, preference, showFacilitiesOnMap]);
+  }, [facilities, selectedCategory, selectedPoiId, currentSeg, customWaypoints, preference, showFacilitiesOnMap]);
 
   const handleFitAll = () => {
     setActiveDay('all');

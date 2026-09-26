@@ -20,18 +20,28 @@ export const FACILITY_CATEGORIES: Record<FacilityCategory, CategoryConfig> = {
     color: '#0f172a',
     bgColor: '#f1f5f9',
     borderColor: '#cbd5e1',
-    keywords: '酒店|餐饮|加油站|充电站|厕所|停车场',
+    keywords: '酒店|民宿|餐饮|加油站|充电站|厕所|停车场',
     amapType: '100000|050000|010100|011100|200300|150900'
   },
   hotel: {
     key: 'hotel',
-    label: '酒店/民宿',
+    label: '酒店',
     emoji: '🏨',
     color: '#1d4ed8',
     bgColor: '#eff6ff',
     borderColor: '#93c5fd',
-    keywords: '酒店|宾馆|民宿|客栈|度假村',
+    keywords: '酒店|宾馆|度假村',
     amapType: '100000|100100|100200'
+  },
+  homestay: {
+    key: 'homestay',
+    label: '民宿',
+    emoji: '🏡',
+    color: '#0d9488',
+    bgColor: '#f0fdfa',
+    borderColor: '#99f6e4',
+    keywords: '民宿|客栈|旅馆|农家乐住宿',
+    amapType: '100105|100200|100201'
   },
   food: {
     key: 'food',
@@ -40,8 +50,8 @@ export const FACILITY_CATEGORIES: Record<FacilityCategory, CategoryConfig> = {
     color: '#e11d48',
     bgColor: '#fff1f2',
     borderColor: '#fca5a5',
-    keywords: '餐厅|农家乐|饭店|特色小吃|快餐',
-    amapType: '050000|050100|050200|050400'
+    keywords: '餐厅|农家乐|饭店|特色小吃',
+    amapType: '050000|050100|050200|050300|050400'
   },
   gas: {
     key: 'gas',
@@ -51,7 +61,7 @@ export const FACILITY_CATEGORIES: Record<FacilityCategory, CategoryConfig> = {
     bgColor: '#fffbeb',
     borderColor: '#fcd34d',
     keywords: '加油站|中国石化|中国石油|壳牌',
-    amapType: '010100|010101'
+    amapType: '010100|010101|010102'
   },
   ev: {
     key: 'ev',
@@ -71,7 +81,7 @@ export const FACILITY_CATEGORIES: Record<FacilityCategory, CategoryConfig> = {
     bgColor: '#f0f9ff',
     borderColor: '#7dd3fc',
     keywords: '公共厕所|洗手间|公厕',
-    amapType: '200300|200301'
+    amapType: '200300|200301|200302'
   },
   parking: {
     key: 'parking',

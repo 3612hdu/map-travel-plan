@@ -7,9 +7,12 @@ import { OvernightDecisionModal } from './components/overnight/OvernightDecision
 import { useTripStore } from './store/useTripStore';
 
 export const App: React.FC = () => {
-  const store = useTripStore();
+  useTripStore();
   if (typeof window !== 'undefined') {
-    (window as any).__tripStore = store;
+    Object.defineProperty(window, '__tripStore', {
+      get: () => useTripStore.getState(),
+      configurable: true
+    });
   }
 
   return (

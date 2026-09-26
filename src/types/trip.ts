@@ -53,6 +53,10 @@ export interface Segment {
   customStartName?: string;
   customEndCoord?: [number, number]; // 住宿点重置终点
   customEndName?: string;
+  defaultDay?: number; // 原始默认所属天数
+  isSplitPart?: 'first' | 'second'; // 是否为中间拆分生成的路段
+  splitParentId?: string; // 拆分来源的原路段 ID
+  isBoundaryStop?: boolean; // 是否处于路段边界
 }
 
 export interface OvernightStop {
@@ -66,6 +70,7 @@ export interface OvernightStop {
   sourceSegmentId: string;
   targetCityOrArea?: string; // 如 "广水市" / "随州市"
   rating?: number;
+  positionType?: 'middle' | 'boundary'; // 处于路段中间还是边界
 
   // 动态路线测算数据
   todayDrivingKm?: number;

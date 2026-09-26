@@ -5,6 +5,7 @@ export const initialSegments: Segment[] = [
   {
     id: 's1',
     day: 1,
+    defaultDay: 1,
     dayTitle: 'DAY 1',
     title: '黄冈师范学院 → 麻城',
     start: 0, // 黄冈师范学院
@@ -28,6 +29,7 @@ export const initialSegments: Segment[] = [
   {
     id: 's2',
     day: 1,
+    defaultDay: 1,
     dayTitle: 'DAY 1',
     title: '麻城 → 大悟',
     start: 1, // 麻城市
@@ -61,6 +63,7 @@ export const initialSegments: Segment[] = [
   {
     id: 's3',
     day: 1,
+    defaultDay: 1,
     dayTitle: 'DAY 1',
     title: '大悟 → 随州',
     start: 3, // 大悟县
@@ -94,6 +97,7 @@ export const initialSegments: Segment[] = [
   {
     id: 's4',
     day: 2,
+    defaultDay: 2,
     dayTitle: 'DAY 2',
     title: '随州 → 襄阳',
     start: 5, // 随州市
@@ -127,6 +131,7 @@ export const initialSegments: Segment[] = [
   {
     id: 's5',
     day: 2,
+    defaultDay: 2,
     dayTitle: 'DAY 2',
     title: '襄阳 → 丹江口',
     start: 7, // 襄阳市
@@ -150,6 +155,7 @@ export const initialSegments: Segment[] = [
   {
     id: 's6',
     day: 2,
+    defaultDay: 2,
     dayTitle: 'DAY 2',
     title: '丹江口 → 郧阳',
     start: 8,  // 丹江口市

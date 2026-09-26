@@ -19,6 +19,30 @@ class AMapService {
   private isLoaded = false;
   private loadPromise: Promise<any> | null = null;
 
+  // 路线算路缓存与请求治理 (10分钟 TTL 内存缓存与进行中请求复用)
+  private routeCache = new Map<string, { result: RouteCalcResult; timestamp: number }>();
+  private inFlightPlans = new Map<string, Promise<RouteCalcResult>>();
+  private activeOvernightGeneration = 0;
+
+  // 递增并获取新的代际令牌
+  nextOvernightGeneration(): number {
+    return ++this.activeOvernightGeneration;
+  }
+
+  getCurrentOvernightGeneration(): number {
+    return this.activeOvernightGeneration;
+  }
+
+  isCurrentOvernightGeneration(gen: number): boolean {
+    return gen === this.activeOvernightGeneration;
+  }
+
+  // 清空算路缓存
+  clearRouteCache() {
+    this.routeCache.clear();
+    this.inFlightPlans.clear();
+  }
+
   // 异步加载并初始化高德 JS API
   async load(): Promise<any> {
     if (this.isLoaded && this.api) return this.api;
@@ -129,6 +153,20 @@ class AMapService {
     const waypoints = [...defaultWaypoints, ...customCoords];
     const aMapPolicy = mapPreferenceToAMapPolicy(preference);
 
+    // 构建算路全局唯一缓存 Key
+    const cacheKey = `${startCoord[0].toFixed(5)},${startCoord[1].toFixed(5)}->${endCoord[0].toFixed(5)},${endCoord[1].toFixed(5)}|opt:${option.id}|wp:${waypoints.map(w => `${w[0].toFixed(4)},${w[1].toFixed(4)}`).join(';')}|p:${aMapPolicy}`;
+
+    // 1. 检查本地内存缓存 (10分钟 TTL)
+    const cached = this.routeCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < 10 * 60 * 1000) {
+      return cached.result;
+    }
+
+    // 2. 检查是否有相同路段相同参数的请求正在进行中，避免并发重复开销
+    if (this.inFlightPlans.has(cacheKey)) {
+      return this.inFlightPlans.get(cacheKey)!;
+    }
+
     const executeSearch = (attempt: number): Promise<RouteCalcResult> => {
       return new Promise((resolve, reject) => {
         try {
@@ -173,13 +211,21 @@ class AMapService {
                 )
               ).slice(0, 10) as string[];
 
-              resolve({
+              const calcResult: RouteCalcResult = {
                 path,
                 distance: Number(route.distance) || 0,
                 time: Number(route.time) || 0,
                 tolls: route.tolls != null ? Number(route.tolls) : 0,
                 roads
+              };
+
+              // 写入缓存
+              this.routeCache.set(cacheKey, {
+                result: calcResult,
+                timestamp: Date.now()
               });
+
+              resolve(calcResult);
             }
           );
         } catch (err) {
@@ -192,7 +238,12 @@ class AMapService {
       });
     };
 
-    return executeSearch(0);
+    const planPromise = executeSearch(0).finally(() => {
+      this.inFlightPlans.delete(cacheKey);
+    });
+
+    this.inFlightPlans.set(cacheKey, planPromise);
+    return planPromise;
   }
 
   // 渲染所有路段的 Polyline (支持 Day 1 / Day 2 聚焦与高亮模式)

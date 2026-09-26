@@ -8,6 +8,7 @@ import { initialFacilities } from '../data/mockAmenities';
 import { initialVideos } from '../data/videoData';
 import { RoutePreference, DEFAULT_PREFERENCE } from '../types/preference';
 import { amapService } from '../services/amapService';
+import { reconstructTripWithOvernight, buildDayPlans } from '../utils/tripReconstruction';
 
 export const defaultOvernightCandidates: OvernightStop[] = [
   {
@@ -171,12 +172,22 @@ export const useTripStore = create<TripStore>((set, get) => {
       set((state) => ({ preference: { ...state.preference, ...pref } })),
 
     setDayStartTime: (day, time) =>
-      set((state) => ({
-        dayStartTimes: {
+      set((state) => {
+        const nextTimes = {
           ...state.dayStartTimes,
           [day]: time
-        }
-      })),
+        };
+        const updatedDays = (state.trip.days || []).map((dp) =>
+          dp.day === day ? { ...dp, startTime: time } : dp
+        );
+        return {
+          dayStartTimes: nextTimes,
+          trip: {
+            ...state.trip,
+            days: updatedDays
+          }
+        };
+      }),
 
     setIsComparisonModalOpen: (open) => set({ isComparisonModalOpen: open }),
 
@@ -197,98 +208,70 @@ export const useTripStore = create<TripStore>((set, get) => {
 
     setOvernightStop: (stop) => {
       const state = get();
+      const currentGen = amapService.nextOvernightGeneration();
+
+      // 1. 更新或加入候选列表
+      let updatedCandidates = state.overnightCandidates;
       if (stop) {
-        // 更新或加入候选列表
         const exists = state.overnightCandidates.some((c) => c.id === stop.id || c.name === stop.name);
-        const updatedCandidates = exists
+        updatedCandidates = exists
           ? state.overnightCandidates.map((c) => (c.id === stop.id || c.name === stop.name ? stop : c))
           : [...state.overnightCandidates, stop];
-
-        const updatedSegments = state.segments.map((seg) => {
-          if (seg.id === 's3') {
-            return {
-              ...seg,
-              customEndCoord: stop.coord,
-              customEndName: stop.name,
-              title: `大悟 → ${stop.name}`
-            };
-          }
-          if (seg.id === 's4') {
-            return {
-              ...seg,
-              customStartCoord: stop.coord,
-              customStartName: stop.name,
-              title: `${stop.name} → 襄阳`
-            };
-          }
-          return seg;
-        });
-
-        set({
-          overnightStop: stop,
-          overnightCandidates: updatedCandidates,
-          segments: updatedSegments
-        });
-
-        // 重新规划 s3 与 s4
-        const s3 = updatedSegments.find((s) => s.id === 's3');
-        const s4 = updatedSegments.find((s) => s.id === 's4');
-        if (s3) {
-          const opt = s3.options.find((o) => o.id === (state.selectedOptions['s3'] || s3.chosen)) || s3.options[0];
-          amapService
-            .planSegment(s3, opt, state.customWaypoints['s3'] || [], state.preference)
-            .then((res) => get().setRouteResult(`s3:${opt.id}`, res))
-            .catch((err) => console.warn('s3 重新算路失败:', err));
-        }
-        if (s4) {
-          const opt = s4.options.find((o) => o.id === (state.selectedOptions['s4'] || s4.chosen)) || s4.options[0];
-          amapService
-            .planSegment(s4, opt, state.customWaypoints['s4'] || [], state.preference)
-            .then((res) => get().setRouteResult(`s4:${opt.id}`, res))
-            .catch((err) => console.warn('s4 重新算路失败:', err));
-        }
-      } else {
-        // 取消住宿，恢复原始 Day 边界
-        const updatedSegments = state.segments.map((seg) => {
-          if (seg.id === 's3') {
-            const next = { ...seg };
-            delete next.customEndCoord;
-            delete next.customEndName;
-            next.title = '大悟 → 随州';
-            return next;
-          }
-          if (seg.id === 's4') {
-            const next = { ...seg };
-            delete next.customStartCoord;
-            delete next.customStartName;
-            next.title = '随州 → 襄阳';
-            return next;
-          }
-          return seg;
-        });
-
-        set({
-          overnightStop: null,
-          segments: updatedSegments
-        });
-
-        const s3 = updatedSegments.find((s) => s.id === 's3');
-        const s4 = updatedSegments.find((s) => s.id === 's4');
-        if (s3) {
-          const opt = s3.options.find((o) => o.id === (state.selectedOptions['s3'] || s3.chosen)) || s3.options[0];
-          amapService
-            .planSegment(s3, opt, state.customWaypoints['s3'] || [], state.preference)
-            .then((res) => get().setRouteResult(`s3:${opt.id}`, res))
-            .catch((err) => console.warn('s3 恢复算路失败:', err));
-        }
-        if (s4) {
-          const opt = s4.options.find((o) => o.id === (state.selectedOptions['s4'] || s4.chosen)) || s4.options[0];
-          amapService
-            .planSegment(s4, opt, state.customWaypoints['s4'] || [], state.preference)
-            .then((res) => get().setRouteResult(`s4:${opt.id}`, res))
-            .catch((err) => console.warn('s4 恢复算路失败:', err));
-        }
       }
+
+      // 2. 动态重构路段与多日日程 (彻底去除对固定 s3/s4 ID 的依赖)
+      const { segments: reconstructedSegments, dayPlans } = reconstructTripWithOvernight(
+        initialSegments,
+        stop,
+        {
+          dayStartTimes: state.dayStartTimes,
+          selectedOptions: state.selectedOptions,
+          customWaypoints: state.customWaypoints
+        }
+      );
+
+      // 3. 同步更新 Trip 核心数据模型中的 DayPlan[] 数组模型
+      const updatedTrip: Trip = {
+        ...state.trip,
+        days: dayPlans
+      };
+
+      set({
+        overnightStop: stop,
+        overnightCandidates: updatedCandidates,
+        segments: reconstructedSegments,
+        trip: updatedTrip
+      });
+
+      // 4. 识别需要重新请求高德实路规划的路段 (端点坐标发生变更或新拆分的路段)
+      const segmentsToPlan = stop
+        ? reconstructedSegments.filter((seg) => !!seg.customStartCoord || !!seg.customEndCoord)
+        : reconstructedSegments.filter((seg) => seg.id === 's3' || seg.id === 's4' || seg.id === 's2' || seg.id === 's5');
+
+      // 5. 并发受控与代际拦截：平滑顺序发起算路，杜绝并发轰炸与旧结果覆盖最新选择
+      segmentsToPlan.forEach((seg, idx) => {
+        const optId = state.selectedOptions[seg.id] || seg.chosen;
+        const opt = seg.options.find((o) => o.id === optId) || seg.options[0];
+        const wp = state.customWaypoints[seg.id] || [];
+
+        setTimeout(() => {
+          // 代际校验：如果用户快速连续切换，丢弃旧代际任务
+          if (!amapService.isCurrentOvernightGeneration(currentGen)) {
+            return;
+          }
+
+          amapService
+            .planSegment(seg, opt, wp, state.preference)
+            .then((res) => {
+              if (amapService.isCurrentOvernightGeneration(currentGen)) {
+                get().setRouteResult(`${seg.id}:${opt.id}`, res);
+              }
+            })
+            .catch((err) => {
+              console.warn(`路段 ${seg.id} 动态算路失败:`, err);
+            });
+        }, idx * 60);
+      });
     },
 
     setActiveDay: (day) => {

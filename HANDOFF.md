@@ -1,7 +1,7 @@
 # 可交互自驾路线规划器 V2 —— 会话交接文档 (HANDOFF.md)
 
 > **最后更新**：2026-09-26  
-> **基线状态**：Phase A / Phase B / Phase C / Phase C.1 / Phase D 全数交付完成，所有自动化测试 100% 通过（基准 TEST 01～14 + Phase C 走廊验证 + Phase C.1 搜索可靠性专项验证 + Phase D 时间轴与住宿决策 8 项专项验证）。  
+> **基线状态**：Phase A / Phase B / Phase C / Phase C.1 / Phase D / Phase D.1 全数交付完成，所有自动化测试 100% 通过（基准 TEST 01～14 + Phase C 走廊验证 + Phase C.1 搜索可靠性专项验证 + Phase D 时间轴与住宿决策 8 项专项验证 + Phase D.1 行程模型泛化与完整性 8 项专项验证）。  
 > **使用说明**：后续所有开发会话优先读取本文件作为真实上下文基线，严禁推测或依赖历史记忆。
 
 ---
@@ -31,17 +31,36 @@
    - **自动化专项回归套件**：编写 `test-phase-c1.mjs`，包含连续搜索丢弃、缓存复用、并发上限、Top 20 截取与展开、文案语义合规五大专项断言。
 6. **Phase D 行程时间轴与住宿决策系统**：
    - **出发时间动态推演与级联流转**：支持 Day 1 / Day 2 独立配置出发时间（默认 12:00 与 09:00），基于高德各路段真实算路时长与停留补给预留时间动态级联推算后续所有节点的 ETA；出发时间或路段重算时全线毫秒级自动刷新；计算过程中严格展示“等待路线数据”，避免假数据误导。
-   - **酒店升级为“今晚住宿”（Overnight Stop）**：将酒店从普通沿途 POI 升格为重构 Day 1 终点与 Day 2 起点的核心枢纽，自动动态切分与重算 s3（大悟→住宿地）与 s4（住宿地→襄阳）两段路线，实时反映两日驾驶负担变化。
+   - **酒店升级为“今晚住宿”（Overnight Stop）**：将酒店从普通沿途 POI 升格为重构 Day 1 终点与 Day 2 起点的核心枢纽，自动动态切分与重算两段路线，实时反映两日驾驶负担变化。
    - **多候选地决策对比系统（Overnight Decision Comparison）**：在左侧面板与设施卡片提供【对比】与【方案比较】入口，支持 2~3 个候选方案（如广水应山宾馆 vs 随州齐星湖会馆）并列横向对比；清晰呈现今日驾驶/预计抵达/明日剩余/两日行车节奏比例条，并给出客观可解释规则标签（“更均衡”、“今天更轻松”、“明天更轻松”）。
    - **地图联动与日程聚焦**：左侧提供 `[全程] [DAY 1] [DAY 2]` 快速切换视角，地图自动高亮当前日程路线、弱化其他日程并自适应视野；在住宿点渲染专属 `🛏` 标牌 Marker 与预计到达时间标签，支持一键在弹窗中取消住宿并恢复默认边界规划。
+7. **Phase D.1 行程模型泛化与完整性治理 (Trip Model Generalization & Integrity)**：
+   - **消除硬编码 s3/s4 假设**：通用支持在任意路段设置住宿点，无论是路段中间停留还是路段终点边界衔接，均具备严谨的数学模型判定 (`determineOvernightPosition`) 与行程重构引擎 (`reconstructTripWithOvernight`)。
+   - **路段中间智能拆分 (Middle Split)**：当住宿点选在路段中间（如广水应山宾馆），原路段 $A \to B$ 被拆分为 $A \to H$（第 1 天收车段）与 $H \to B$（第 2 天发车段），行程总段数从 6 段动态扩充至 7 段，后续路段天数归属平滑后移，各段标题清晰易懂。
+   - **路段边界无损吸附 (Boundary Stop)**：当住宿点在路段终点附近（如随州齐星湖会馆），系统智能吸附前段终点与次段起点至酒店真实坐标，总段数严格保持为 6 段，绝不产生重复多余路段或重名段落。
+   - **跨路段天边界动态漂移**：若将住宿改在襄阳绿地铂骊酒店，系统将自动将 Day 1 调整为 4 段（黄冈至襄阳）、Day 2 调整为 2 段（襄阳至郧阳），天边界完全由住宿决策动态主导。
+   - **用户路线意图严密保全**：设置/切换住宿点前后，严格保全用户的各路段方案选择（`selectedOptions`）、风景途经点（如 s6 环库路线 `via: [9, 10, 11]`）、自定义途经点（`customWaypoints`）以及全线路线偏好（`avoidHighway` 等）。
+   - **途经点与住宿点语义解耦**：`Waypoint` 为沿途经停（继续驾驶），`OvernightStop` 为日程收发分界（结束当日、开启次日）；二者数据流与时间轴表达互不干扰。
+   - **泛化多日架构与消除硬编码字段**：移除 `day1StartTime` / `day2StartTime` 等专属性字段，统一采用 `dayStartTimes: Record<number, string>` 与动态 `DayPlan[]` 数组，时间轴生成器通过循环通用处理任意 $N$ 日行程。
+   - **算路请求治理与代际防抖**：建立 10 分钟 TTL 算路缓存 `routeCache` 与在途请求去重 `inFlightPlans`；引入 `activeOvernightGeneration` 代际令牌，在连续快速切换 A $\to$ B $\to$ C 候选时丢弃过时异步算路，确保最终界面状态 100% 严格一致。
+   - **完全恢复能力 (Zero-leak Restoration)**：取消住宿后，行程立刻无损重构回 6 段原始基线状态，Day 1 与 Day 2 段数各为 3 段，所有自定义端点坐标与标记完全清理，无残留脏数据。
 
 ---
 
 ## 2. 当前真实可运行状态与测试证据
 
-- **构建命令**：`npm run build` -> `tsc && vite build`，**0 报错，0 告警**，产物体积 ~316 kB。
+- **构建命令**：`npm run build` -> `tsc && vite build`，**0 报错，0 告警**，产物体积 ~352 kB。
 - **本地服务**：`http://127.0.0.1:5173/` 正常运行。
 - **自动化测试通过率**：
+  - `node test-phase-d1.mjs`：**8/8 PASS (100%)**
+    - D1-01: 中间拆分成功，总段数 6->7 段，s3 收车于广水，s4 从广水发车前往随州（PASS）。
+    - D1-02: 边界住宿总段数严格保持 6，无重复路段，唯一标题数 6，端点精准对齐（PASS）。
+    - D1-03: 住宿改在襄阳，Day Boundary 成功后移，Day 1 变 4 段，Day 2 变 2 段（PASS）。
+    - D1-04: 设置住宿后 s6 保持选中环库风景路线，环库 via points [9, 10, 11] 完整保留（PASS）。
+    - D1-05: 切换住宿前后 s6 customWaypoints 严格保留（PASS）。
+    - D1-06: 连续快速切换 A->B->C 住宿候选，旧代际被成功屏蔽，最终状态严格保持为 C（PASS）。
+    - D1-07: 取消住宿后完全复原为 6 段（3+3），标题与坐标零残留（PASS）。
+    - D1-08: 核心模型为动态数组 DayPlan[]，成功消除硬编码 day1StartTime/day2StartTime（PASS）。
   - `node test-phase-d.mjs`：**8/8 PASS (100%)**
     - TEST D01: 设置 Day 1 出发时间 12:00，时间轴正确生成（PASS）。
     - TEST D02: 出发时间由 12:00 改为 10:30，全线时间同步前移 90 分钟（PASS）。
@@ -55,8 +74,8 @@
     - 测试 A: 连续搜索拦截丢弃旧代际，卡片展示最新结果（PASS）。
     - 测试 B: 重复相同搜索命中缓存，`cacheHits` 自增无重复网络请求（PASS）。
     - 测试 C: 全程 711km 走廊 36 锚点检索，峰值并发严格 `= 2 <= 2`，无 QPS 溢出（PASS）。
-    - 测试 D: 检索出 184 处顺路设施，默认呈现 Top 20，点击展开至全部 184 处（PASS）。
-    - 测试 E: 核查 184 张设施卡片，184 处合规“预计绕行”，0 处“实际绕行”，0 处“真实绕行”（PASS）。
+    - 测试 D: 检索出 153 处顺路设施，默认呈现 Top 20，点击展开至全部 153 处（PASS）。
+    - 测试 E: 核查 153 张设施卡片，153 处合规“预计绕行”，0 处“实际绕行”，0 处“真实绕行”（PASS）。
   - `node test-phase-c.mjs`：**全部步骤 PASS**（全程 711km 检索、路段搜索、类别过滤、地图联动均正常）。
   - `node test-acceptance.mjs`：**TEST 01 ～ TEST 14 全数 PASS (100%)**。
 
@@ -74,64 +93,98 @@
 | **搜索列表一次性平铺 100+ 条卡片** | **已修复 (Phase C.1)** | 引入综合相关度排序，默认折叠截取 Top 20，并支持一键展开/收起；全程模式按 Day/Segment 层次结构分组。 |
 | **设施卡片首选按钮选择器冲突** | **已修复 (Phase D)** | 基准测试 TEST 11 选择器匹配卡片内第一个按钮，若将【设为今晚住宿】前置会导致停靠点测试点击错误；保持【+ 加入停靠点】为首按钮，住宿与对比按钮后置，确保双向兼容。 |
 | **日程模式过滤导致 DOM 节点减少** | **已修复 (Phase D)** | 早期在 Day 2 模式下仅渲染 Day 2 的 Segment 卡片，导致 TEST 04 断言 `segmentCards.length === 6` 失败；调整为左侧列表始终全量保全 6 张卡片，Day 模式着重作用于地图高亮聚焦与时间轴切面。 |
+| **行政管辖与物理距离冲突** | **已修复 (Phase D.1)** | 广水在行政上由随州市代管（API 返回 `city: '随州市'`），原代码仅凭字符串包含误将广水判定为随州边界；现通过空间物理测距 `dEnd <= 18km`（或 `dEnd <= 25km && cityMatched`）与 `determineOvernightPosition` 算法，精确区分广水为“路段中间拆分”(`middle`)，随州齐星湖为“边界住宿”(`boundary`)。 |
+| **自动化测试单帧状态快照陷阱** | **已修复 (Phase D.1)** | `App.tsx` 中 `window.__tripStore = store` 会在组件初次渲染时固化单次快照，导致异步测试脚本在调用 setter 后同步读取到陈旧值；重构为 `Object.defineProperty(window, '__tripStore', { get: () => useTripStore.getState() })` 动态实时访问器。 |
 
 ---
 
 ## 4. 当前 API 与队列架构
 
 ```text
-[ 用户输入 / 类别切换 / 路段切换 ]
+[ 用户设置住宿 / 切换候选 / 取消住宿 ]
        │
-       ├──> Generation Token 递增 (activeSearchGeneration++)
-       │    └─ 立即清空并丢弃 globalQueue 中旧代际任务
+       ├──> Generation Token 递增 (activeOvernightGeneration++)
        │
-       ├──> 检查 searchCache (5分钟 TTL) ──[命中]──> 重新相关度微调并瞬时返回
+       ├──> 判定位置类型 determineOvernightPosition (middle vs boundary)
        │
-       ├──> 检查 inFlightRequests ──[进行中]──> 复用在途 Promise
+       ├──> 重构行程段落 reconstructTripWithOvernight
+       │       ├─ Middle 拆分: A->B 裂变为 A->H 与 H->B (段数 6 -> 7)
+       │       ├─ Boundary 吸附: 端点吸附至 H 坐标 (段数严格保持 6)
+       │       ├─ 保全已选 Option、风景途经点与自定义途经点
+       │       └─ 动态重构 DayPlan[] 天数组并后移后续路段归属
        │
-       └──> [ 抽样锚点任务入队: enqueueGlobalTask ]
-              │
-              ▼
-       [ 全局受控调度器: scheduleGlobalQueue ]
-              ├─ 严格保证 activeGlobalWorkers <= 2
-              ├─ 任务间隔延迟 TASK_SPACING_MS = 40ms
-              ├─ 遇到过期代际任务直接跳过 resolve([])
-              └─ 调用 AMap.PlaceSearch(type, center, radius: 8500m)
-                     │
-                     ▼
-       [ 垂距计算 & 过滤 & 综合相关度评分 calculateRelevanceScore ]
-              │
-              ▼
-       [ 排序 & 写入 searchCache & 呈现 Top 20 / 分组展示 ]
+       ├──> 检查 routeCache (10分钟 TTL) ──[命中]──> 瞬时赋给 routeResults
+       │
+       ├──> 检查 inFlightPlans ──[在途]──> 复用 Promise
+       │
+       └──> 平滑发起 Driving 算路 ──> 校验代际令牌 ──> 更新 store
 ```
 
 ---
 
 ## 5. 当前核心数据模型
 
-- **`Trip` / `Segment` / `RouteOption`** (`src/types/trip.ts`)：
-  - `Segment`: `id`, `day`, `title`, `start`, `end`, `chosen`, `options`, `customStartCoord`, `customStartName`, `customEndCoord`, `customEndName`
+- **`Trip` / `DayPlan` / `Segment` / `RouteOption`** (`src/types/trip.ts`)：
+  - `Trip`: `id`, `title`, `days: DayPlan[]`, `segments: Segment[]`, `totalDistanceKm`, `totalDurationMinutes`
+  - `DayPlan`: `day: number`, `title: string`, `segments: Segment[]`, `date?: string`
+  - `Segment`: `id`, `day`, `defaultDay`, `title`, `start`, `end`, `chosen`, `options`, `isSplitPart?`, `splitParentId?`, `isBoundaryStop?`, `customStartCoord?`, `customStartName?`, `customEndCoord?`, `customEndName?`
   - `RouteOption`: `id`, `name`, `tagTitle`, `via`, `comparisonNote`, `highlights`
 - **`OvernightStop` & `TimelineItem`** (`src/types/trip.ts`)：
-  - `OvernightStop`: `id`, `poiId`, `name`, `coord`, `address`, `city`, `targetCityOrArea`, `day`, `sourceSegmentId`, `rating`, `priceLevel`, `todayDrivingKm`, `todayDrivingDurationSec`, `todayEta`, `tomorrowRemainingKm`, `tomorrowRemainingDurationSec`, `decisionTag` ('more_balanced' | 'today_relaxed' | 'tomorrow_relaxed'), `decisionLabel`, `decisionReason`
+  - `OvernightStop`: `id`, `poiId`, `name`, `coord`, `address`, `city`, `targetCityOrArea`, `day`, `sourceSegmentId`, `positionType?: 'middle' | 'boundary'`, `rating`, `priceLevel`, `todayDrivingKm`, `todayDrivingDurationSec`, `todayEta`, `tomorrowRemainingKm`, `tomorrowRemainingDurationSec`, `decisionTag`, `decisionLabel`, `decisionReason`
   - `TimelineItem`: `id`, `day`, `type` ('departure' | 'waypoint' | 'poi' | 'destination' | 'rest' | 'overnight'), `title`, `subtitle`, `plannedTime`, `isPendingRoute`, `linkedSegmentId`, `isOvernight`
-- **`RoutePoi`** (`src/types/poi.ts`)：
-  - `id`, `name`, `category` (hotel | food | gas | ev | toilet | parking), `coord`, `distanceToRoute`, `estimatedDetourKm`, `sourceSegmentId`, `sourceDay`, `relevanceScore`
-- **`RoutePreference`** (`src/types/preference.ts`)：
-  - `avoidHighway`, `avoidToll`, `avoidCongestion`
-- **`RouteCalcResult`** (`src/types/map.ts`)：
-  - `path`: `[lng, lat][]`, `distance` (米), `time` (秒), `tolls` (元), `roads`: `string[]`
+- **`TripState` Store 核心字段** (`src/store/useTripStore.ts`)：
+  - `dayStartTimes: Record<number, string>`: 动态各天出发时间字典（彻底消除 hardcoded 2 天字段）
+  - `overnightStop: OvernightStop | null`: 当前生效住宿点
+  - `overnightCandidates: OvernightStop[]`: 2~3 个横向对比候选
+  - `activeOvernightGeneration: number`: 算路代际令牌
+  - `routeCache`: 内存算路缓存 (10-min TTL)
+  - `inFlightPlans`: 在途算路 Promise 映射表
 
 ---
 
-## 6. 下一阶段展望 (Phase E / 后续演进)
+## 6. 下一阶段设计建议：Phase E — Rest / Meal / Daily Rhythm Planning
+### (沿途休息、顺路就餐与日常行车节奏规划)
 
-- **核心主题**：**导出行程路书与高德 App 真实导航外跳联动**。
-- **规划方向**：
-  1. **高德 App / Universal Link 真实导航外跳**：将用户在 Web 端规划调整好的终态路线（含选定住宿点、选定风景分支 s6、添加的途经停靠点）直接导出生成高德高拟合 URI 唤起参数；
-  2. **自驾路书 (PDF / 长图) 导出打印**：基于当前动态时间轴、住宿决策信息、沿途关键补给与风景打卡点，生成便携离线路书；
-  3. **复杂多日拓展支持 (Day 3+)**：将当前的 2 日住宿决策算法推广至多日长途穿越场景；
-  4. **天气与日出日落图层联动**：在时间轴关键打卡点标注预计到达时的光照与天气情况（如丹江口北岸日落时间推算）。
+针对自驾出行中最真实的 4 大核心困惑：
+> 1. “什么时候该休息？”  
+> 2. “在哪里吃饭最顺路？”  
+> 3. “现在继续开还是停下来？”  
+> 4. “如何把休息、就餐无缝加入时间轴与天计划？”
+
+建议 Phase E 围绕以下 4 大支柱展开架构设计：
+
+### 6.1 智能疲劳监测与休息提醒规则引擎 (Fatigue & Rest Rule Engine)
+- **规则触发标准**：
+  - **连续驾车时长阈值**：单次连续驾驶满 2 小时（或 120km），触发【一级休息建议】（提示 15 分钟短暂休整）；满 2.5 小时，触发【强行疲劳预警】（建议进服务区/休息点 20~30 分钟）。
+  - **山路/国道加权系数**：非高速路段（如大悟到随州省道、丹江口环库风景段）弯多路窄，按 1.25 倍疲劳系数计算时间，提前触发休息提醒。
+- **推荐点源与筛选**：
+  - 自动在当前路段走廊内筛选：高速服务区、国道停车区、观景台（如丹江口环湖观景点）、沿途加油站。
+  - 标注距路线垂直距离与进出便捷度（预计绕行 <= 500m 优先）。
+
+### 6.2 沿路顺道就餐推荐系统 (En-route Meal Recommendation System)
+- **就餐时间窗口 (Meal Windows)**：
+  - **午餐窗口**：11:30 ～ 13:30（黄金推荐点落在 ETA 12:00 附近）。
+  - **晚餐窗口**：17:30 ～ 19:30（若当天尚未收车，黄金推荐点落在 ETA 18:00 附近）。
+- **空间与时间交叉匹配 (Spatio-temporal Matching)**：
+  - 遍历当前时间轴，计算 ETA 进入就餐窗口的 Segment。
+  - 以该时间点前后的路线折线为采样走廊，通过 `AMap.PlaceSearch` 检索分类为“中餐厅/地方特色/农家乐”的高分 POI。
+  - **顺路优先**：过滤绕行距离超过 3km 的餐饮，优先展示“路边老店”、“农家土菜”、“湖鲜馆”。
+  - 预估就餐时间：统一预留 45~60 分钟标准就餐耗时。
+
+### 6.3 休息与就餐节点无缝植入动态时间轴 (Timeline Rhythm Scheduling)
+- **交互形式**：
+  - 在左侧时间轴的超长驾驶路段之间，渲染虚线占位卡片：`[ ☕ 已连续驾驶 2h15m · 建议在此休整 15 分钟 | 点击查看顺路休息区 ]` 与 `[ 🍲 正值午餐时段 12:15 · 建议就餐 45 分钟 | 挑选沿途餐厅 ]`。
+  - 点击【挑选沿途餐厅】后，右侧设施面板自动联动切换到【餐饮】Tab，并自动聚焦到对应路段锚点。
+  - 餐饮/休息卡片增加【🍽 加入行程午餐】/【☕ 加入行程休整】按钮。
+- **级联推演传播**：
+  - 用户确认加入就餐/休整点后，时间轴新增 `type: 'meal'` 或 `type: 'rest'` 节点。
+  - 节点包含 `durationMinutes: 45`；后续所有路段与住宿点的到达时间 (ETA) 自动平滑后推 45 分钟。
+
+### 6.4 “继续开还是停下来”驾驶决策辅助 (Stop vs Continue Advisory)
+- **收车临界点决策 (Night Driving Advisory)**：
+  - 当预计到达时间超过日落时间（湖北日落通常约 18:30~19:00）或超过 19:30 且前方为山路/非高速路段时，系统在时间轴与住宿卡片高亮呈现【夜间行车安全提示】。
+  - 辅助对比：“现在停下来（住广水，17:00 抵达，告别夜车）” vs “继续开（住随州，20:00 抵达，需摸黑山路开 1.5 小时）”。
+  - 结合 Phase D 的 2~3 个候选方案对比弹窗，直观为驾驶者提供最符合行车安全与身体舒适度的客观依据。
 
 ---
 
@@ -142,3 +195,4 @@
 3. **共享面板 Tab 互斥切换**：沿途视频与沿途设施必须继续共享右侧同一个面板，通过顶部 Tab 切换，严禁拆成两个堆叠面板。
 4. **路线走廊搜索真实沿路**：保持“全程”与“当前路段”双作用域，严控全局并发 <= 2，严禁绕过全局调度队列发起并发请求。
 5. **严禁黑盒伪造行程数据**：时间轴推算严格依据真实算路与停靠预留耗时；在路线未返回时展示“等待路线数据”，绝不编造静态假数字；住宿推荐原因必须具备严格可解释的规则溯源。
+6. **行程模型保持泛化与天边界自适应**：严禁回退到写死特定路段（如写死 s3/s4）的紧耦合逻辑；所有多日行程均必须由 `DayPlan[]` 动态派生。

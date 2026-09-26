@@ -22,8 +22,9 @@ export const TripTimeline: React.FC<TripTimelineProps> = ({ dayFilter }) => {
   } = useTripStore();
 
   const targetDay = dayFilter !== undefined ? dayFilter : activeDay;
+  const currentEditingDay = typeof targetDay === 'number' ? targetDay : 1;
   const [isEditingTime, setIsEditingTime] = useState(false);
-  const [tempTime, setTempTime] = useState(dayStartTimes[1] || '12:00');
+  const [tempTime, setTempTime] = useState(dayStartTimes[currentEditingDay] || (currentEditingDay === 1 ? '12:00' : '09:00'));
 
   const timelineItems = generateTimelineItems(
     segments,
@@ -37,7 +38,7 @@ export const TripTimeline: React.FC<TripTimelineProps> = ({ dayFilter }) => {
 
   const handleTimeSubmit = () => {
     if (tempTime) {
-      setDayStartTime(1, tempTime);
+      setDayStartTime(currentEditingDay, tempTime);
     }
     setIsEditingTime(false);
   };
@@ -100,7 +101,7 @@ export const TripTimeline: React.FC<TripTimelineProps> = ({ dayFilter }) => {
         {/* 出发时间调节 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span style={{ fontSize: '11px', color: '#64748b' }}>
-            {targetDay === 2 ? 'Day 2' : 'Day 1'}出发:
+            {currentEditingDay === 1 ? 'Day 1' : `Day ${currentEditingDay}`}出发:
           </span>
           {isEditingTime ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -140,7 +141,7 @@ export const TripTimeline: React.FC<TripTimelineProps> = ({ dayFilter }) => {
               type="button"
               id="timeline-departure-time-btn"
               onClick={() => {
-                setTempTime(dayStartTimes[targetDay === 2 ? 2 : 1] || '12:00');
+                setTempTime(dayStartTimes[currentEditingDay] || (currentEditingDay === 1 ? '12:00' : '09:00'));
                 setIsEditingTime(true);
               }}
               style={{
@@ -158,7 +159,7 @@ export const TripTimeline: React.FC<TripTimelineProps> = ({ dayFilter }) => {
               }}
               title="点击调整出发时间，所有节点自动推算"
             >
-              <span>{dayStartTimes[targetDay === 2 ? 2 : 1] || (targetDay === 2 ? '09:00' : '12:00')}</span>
+              <span>{dayStartTimes[currentEditingDay] || (currentEditingDay === 1 ? '12:00' : '09:00')}</span>
               <Edit3 size={10} />
             </button>
           )}

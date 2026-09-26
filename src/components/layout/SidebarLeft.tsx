@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, Compass, Bookmark, Save, Share2, Star, Layers, Bed, Clock } from 'lucide-react';
+import { Calendar, Compass, Bookmark, Save, Share2, Star, Layers, Bed, Clock, Navigation } from 'lucide-react';
 import { useTripStore } from '../../store/useTripStore';
 import { formatDuration } from '../../utils/geo';
 import { TripTimeline } from '../timeline/TripTimeline';
@@ -14,7 +14,8 @@ export const SidebarLeft: React.FC = () => {
     selectedOptions,
     routeResults,
     overnightStop,
-    setIsComparisonModalOpen
+    setIsComparisonModalOpen,
+    setIsNavigationPlanModalOpen
   } = useTripStore();
 
   const [activeNavTab, setActiveNavTab] = useState<'plan' | 'recommend' | 'saved'>('plan');
@@ -241,6 +242,16 @@ export const SidebarLeft: React.FC = () => {
       <div className="sidebar-footer-actions">
         <button
           type="button"
+          id="btn-footer-nav-plan"
+          className="btn-sidebar-action"
+          onClick={() => setIsNavigationPlanModalOpen(true)}
+          style={{ background: '#059669', color: '#ffffff' }}
+        >
+          <Navigation size={14} />
+          <span>全程导航</span>
+        </button>
+        <button
+          type="button"
           id="btn-footer-compare-modal"
           className="btn-sidebar-action"
           onClick={() => setIsComparisonModalOpen(true)}
@@ -258,7 +269,7 @@ export const SidebarLeft: React.FC = () => {
           }}
         >
           <Share2 size={14} />
-          <span>分享路线</span>
+          <span>分享</span>
         </button>
       </div>
     </aside>

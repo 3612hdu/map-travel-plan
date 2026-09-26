@@ -8,6 +8,7 @@
 ---
 
 ## 阶段验收结论
+- **Real-Use Fix Sprint 4（全程接力导航/沿途影像升级/全线设施均匀分布/城镇地点卡交互）**：**COMPLETE**（100% 达成）
 - **Core Fix Sprint 3（设施分类/双向联动/住宿实路对比/外跳治理）**：**COMPLETE**（100% 达成）
 - **Core Fix Sprint 2（视频来源/路线亮点/数据诚信）**：**COMPLETE**（100% 达成）
 - **Core Fix Sprint 1（停靠点顺序/方案差异/稳定详情）**：**COMPLETE**（100% 达成）
@@ -17,11 +18,43 @@
 - **Phase D / D.1（行程时间轴与多日泛化住宿决策）**：**COMPLETE**（100% 达成）
 
 核心功能审计（`CORE_FEATURE_AUDIT.md`）：**38 COMPLETE / 1 PARTIAL (#38) / 0 MISSING**。
-所有 9 套测试套件（`test-core-fix-3.mjs`、`test-core-fix-2.mjs`、`test-core-fix-1.mjs`、`test-phase-d1.mjs`、`test-phase-d.mjs`、`test-phase-c1.mjs`、`test-phase-c.mjs`、`test-acceptance.mjs`、`npm run build`）全部 100% 通过。
+所有 10 套测试套件（`test-real-use-fix-4.mjs`、`test-core-fix-3.mjs`、`test-core-fix-2.mjs`、`test-core-fix-1.mjs`、`test-phase-d1.mjs`、`test-phase-d.mjs`、`test-phase-c1.mjs`、`test-phase-c.mjs`、`test-acceptance.mjs`、`npm run build`）全部 100% 通过。
 
 ---
 
-## Core Fix Sprint 3 专项验收明细（2026-09-26）
+## Real-Use Fix Sprint 4 专项验收明细（2026-09-26）
+
+测试套件：`node test-real-use-fix-4.mjs`（100% PASS，14/14 组断言通过，0 报错）
+
+### 1. 全程导航计划与接力导航 (Full Trip Navigation Plan)
+- **RUF4-01-A 导航计划编译器**：严谨编译整套自驾决策（Trip -> Day -> Segment -> RouteOption -> Waypoints），精确计算总里程（711 km）、总耗时（14h34m）、总过路费（¥0）与 6 个有序 NavigationLeg（PASS）。
+- **RUF4-01-B 全程路线确认概览**：在 `NavigationPlanModal` 中清晰展示全线全局指标与按日分段卡片；诚实标注高德单目的地协议限制，杜绝伪全程欺骗（PASS）。
+- **RUF4-01-C 第 1 段接力导航执行**：进入接力模式，展示“当前：第 1 / 6 段 (黄冈师范学院 → 麻城)”，生成合法高德官方导航 URI 并由测试沙箱成功拦截验证（PASS）。
+- **RUF4-01-D 第 2 段推进**：点击“已到达 / 导航下一段”，平滑过渡至第 2 段 (麻城 → 大悟)，支持步骤回退与切回总览（PASS）。
+- **截图**：`docs/real-use-fix-4/01-nav-plan-overview.png`、`02-nav-plan-relay-step1.png`、`03-nav-plan-relay-step2.png`。
+
+### 2. 沿途影像升级与风景真实性 (Route Media)
+- **RUF4-02-A 垃圾内容剔除**：彻底移除“车里做饭”违和视频（`bili-danjiangkou`），全系统 0 处残留（PASS）。
+- **RUF4-02-B 全线 6 段真实风景收录**：覆盖龟峰山杜鹃花海、十八潭瀑布、千年银杏谷、襄阳古城汉江、丹江口水库大坝及环库绿道，真实实景覆盖率 100%（PASS）。
+- **RUF4-02-C 诚实空状态展示**：无匹配素材时严谨呈现“暂未收录可靠实景影像”，宁缺毋滥（PASS）。
+- **RUF4-02-D 影像详情弹窗**：照片点击弹出大图预览与地点出处，视频保留原平台安全跳转（PASS）。
+- **截图**：`docs/real-use-fix-4/04-media-detail-modal.png`。
+
+### 3. 全线设施覆盖与 5-Bucket 均匀分布 (Corridor Coverage & Distribution)
+- **RUF4-03-A 采样走廊全线覆盖率**：折线抽样间隔加密至 <= 15km（上限 48 锚点），`calculateRouteCoverage` 算法测算覆盖率达 100%（>= 95%）（PASS）。
+- **RUF4-03-B 搜索全覆盖与列表 Top 20 独立解耦**：走廊检索 100 处顺路设施，列表默认渲染 Top 20 并支持展开（PASS）。
+- **RUF4-03-C 加油站 5-Bucket 均匀分布**：油站按全程相对进度划入 5 个桶（0~20%, 20~40%, 40~60%, 60~80%, 80~100%）交错提取，彻底解决“前 20km 堆满、后 500km 断档”问题（PASS）。
+
+### 4. 城镇起终点可交互地点卡 (TripNode InfoWindow)
+- **RUF4-04-A 7 个骨干城镇节点 Marker**：地图精准挂载黄冈、麻城、大悟、随州、襄阳、丹江口、郧阳 7 处节点（PASS）。
+- **RUF4-04-B 城镇地点卡内容渲染**：InfoWindow 渲染城镇名称、角色徽标（如“全程起点”、“全程终点”）、Day/Segment 归属、预计到达时间（ETA）及代表性实拍照片（PASS）。
+- **RUF4-04-C 地点卡快捷动作**：点击【查看此路段】触发聚焦该段；点击【搜索周边设施】将城镇名注入搜索并切至设施 Tab（PASS）。
+- **截图**：`docs/real-use-fix-4/05-trip-node-infowindow.png`。
+
+### 5. 控制台诚信保障
+- **RUF4-05-A 控制台 0 报错**：全生命周期执行无未捕获异常或致命控制台错误（PASS）。
+
+---
 
 测试套件：`node test-core-fix-3.mjs`（100% PASS，0 报错）
 

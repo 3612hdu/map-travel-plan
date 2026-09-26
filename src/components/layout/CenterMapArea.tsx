@@ -7,6 +7,7 @@ import { RouteOptionCards } from '../route/RouteOptionCards';
 import { RouteHighlights } from '../route/RouteHighlights';
 import { verifiedStops } from '../../data/stops';
 import { startAmapNavigation } from '../../services/navigationService';
+import { compileTripNodes } from '../../utils/tripNodes';
 
 export const CenterMapArea: React.FC = () => {
   const mapMountedRef = useRef(false);
@@ -32,7 +33,10 @@ export const CenterMapArea: React.FC = () => {
     addWaypoint,
     preference,
     showFacilitiesOnMap,
-    overnightStop
+    overnightStop,
+    dayStartTimes,
+    setSearchQuery,
+    setIsNavigationPlanModalOpen
   } = useTripStore();
 
   const currentSeg = segments.find((s) => s.id === activeSegmentId);
@@ -210,6 +214,32 @@ export const CenterMapArea: React.FC = () => {
     );
   }, [facilities, selectedCategory, selectedPoiId, currentSeg, customWaypoints, preference, showFacilitiesOnMap]);
 
+  // 渲染 7 个核心城镇与起终点可交互地点卡 Marker
+  useEffect(() => {
+    const map = amapService.getMap();
+    if (!map) return;
+
+    const tripNodes = compileTripNodes(
+      segments,
+      selectedOptions,
+      routeResults,
+      customWaypoints,
+      dayStartTimes,
+      overnightStop
+    );
+
+    amapService.renderTripNodeMarkers(
+      tripNodes,
+      (targetSegmentId) => {
+        enterSegmentDetail(targetSegmentId);
+      },
+      (stopName) => {
+        setSearchQuery(stopName);
+        setActiveContentTab('facilities');
+      }
+    );
+  }, [segments, selectedOptions, routeResults, customWaypoints, dayStartTimes, overnightStop]);
+
   const handleFitAll = () => {
     setActiveDay('all');
   };
@@ -290,13 +320,14 @@ export const CenterMapArea: React.FC = () => {
                 </button>
                 <button
                   type="button"
+                  id="btn-start-nav-plan"
                   className="btn-opt-select primary-active"
-                  style={{ maxWidth: '130px', padding: '7px 14px', borderRadius: '10px', background: '#059669', color: '#ffffff' }}
-                  onClick={handleStartNav}
-                  title="调起高德分段导航"
+                  style={{ maxWidth: '140px', padding: '7px 14px', borderRadius: '10px', background: '#059669', color: '#ffffff' }}
+                  onClick={() => setIsNavigationPlanModalOpen(true)}
+                  title="查看并启动全程自驾接力导航计划"
                 >
                   <Navigation size={14} />
-                  <span>开始导航</span>
+                  <span>开始导航计划</span>
                 </button>
               </div>
             </div>

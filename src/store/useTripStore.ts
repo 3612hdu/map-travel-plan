@@ -33,6 +33,8 @@ interface TripStore {
   overnightCandidates: OvernightStop[];
   isComparisonModalOpen: boolean;
   setIsComparisonModalOpen: (open: boolean) => void;
+  isNavigationPlanModalOpen: boolean;
+  setIsNavigationPlanModalOpen: (open: boolean) => void;
   setOvernightStop: (stop: OvernightStop | null) => void;
   addOvernightCandidate: (candidate: OvernightStop) => void;
   removeOvernightCandidate: (candidateId: string) => void;
@@ -115,6 +117,7 @@ export const useTripStore = create<TripStore>((set, get) => {
     overnightStop: null,
     overnightCandidates: defaultOvernightCandidates,
     isComparisonModalOpen: false,
+    isNavigationPlanModalOpen: false,
 
     routeResults: {},
     isRouting: false,
@@ -160,6 +163,7 @@ export const useTripStore = create<TripStore>((set, get) => {
       }),
 
     setIsComparisonModalOpen: (open) => set({ isComparisonModalOpen: open }),
+    setIsNavigationPlanModalOpen: (open) => set({ isNavigationPlanModalOpen: open }),
 
     addOvernightCandidate: (candidate) =>
       set((state) => {

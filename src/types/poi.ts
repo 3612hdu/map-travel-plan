@@ -34,6 +34,13 @@ export interface RoutePoi {
   /** 综合相关度得分 (结合距线距离、评分、当前路段匹配、起终点位置、分类等维度) */
   relevanceScore?: number;
 
+  /** POI 沿路线的进度归一化值 (0.0 ~ 1.0) */
+  routeProgress?: number;
+  /** POI 沿路线的累计里程 (m) */
+  distanceAlongRouteMeters?: number;
+  /** 所属路线进度分段区间 (0: 0~20%, 1: 20~40%, 2: 40~60%, 3: 60~80%, 4: 80~100%) */
+  progressBucket?: number;
+
   /** 是否已执行真实 Driving 绕行测算 */
   isRealDetour?: boolean;
   /** 真实高德 Driving 算出的新增里程 km */

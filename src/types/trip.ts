@@ -137,3 +137,19 @@ export interface Trip {
   preferences: string[];
   days: DayPlan[];
 }
+
+export interface TripNodeInfo {
+  id: string;
+  name: string;
+  coord: [number, number];
+  role: 'tripStart' | 'viaNode' | 'dayEnd' | 'tripEnd';
+  roleLabel: string;
+  dayText: string;
+  segmentId: string;
+  etaText?: string;
+  photoUrl?: string;
+  photoTitle?: string;
+  address?: string;
+  desc?: string;
+}
+

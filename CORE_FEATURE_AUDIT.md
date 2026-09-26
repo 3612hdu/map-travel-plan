@@ -2,6 +2,8 @@
 
 审计日期：2026-09-26。基线：`master` / `f06c15a`，审计前工作区干净。审计只评估现有产品，不修改业务代码。
 
+**Real-Use Fix Sprint 4 更新（2026-09-26）**：针对第一次真实人工使用反馈（全程导航无法接力、出现无关视频、设施搜索前重后轻断档、城镇节点无卡片与动作），完成 4 大专项工作包并经 `test-real-use-fix-4.mjs`（14/14 PASS）及全部既有回归套件验收通过。五张真实浏览器截图见 `docs/real-use-fix-4/`。详见 `REAL_USE_FEEDBACK.md`。全库 39 项核心能力继续稳健保持 38 COMPLETE / 1 PARTIAL (#38) / 0 MISSING。
+
 **Core Fix Sprint 3 更新（2026-09-26）**：FIX7/8/9/10 已全部在真实高德浏览器中由 `test-core-fix-3.mjs` 验收通过。四张截图见 `docs/core-fix-3/`。已将 #13, #15, #19, #20, #21, #22, #23, #24, #27, #39 升级为 COMPLETE。全库 39 项核心能力中，已达成 38 COMPLETE / 1 PARTIAL (#38) / 0 MISSING。
 
 **Core Fix Sprint 2 更新（2026-09-26）**：FIX4/5/6 已在真实高德浏览器验收。视频旧条目审计见 `docs/core-fix-2/video-provenance.md`；五张截图见 `docs/core-fix-2/`。已将 #36、#37 从 PARTIAL 改为 COMPLETE。POI 缺失评分/营业状态不再填假值，住宿候选不再预置酒店与行程数值；#39 因未选候选仍待实路测算，维持 PARTIAL。下方早期段落包含历史观察，以本更新及各条最新状态为准。
@@ -133,6 +135,7 @@
 Core Fix Sprint 1 修复后截图：`docs/core-fix-1/01-waypoint-before.png`、`02-waypoint-after.png`、`03-route-options-comparison.png`、`04-segment-detail.png`、`05-segment-detail-facilities.png`、`06-back-to-overview.png`。
 Core Fix Sprint 2 修复后截图：`docs/core-fix-2/01-highlight-focus.png`、`02-highlight-video-link.png`、`03-segment-videos.png`、`04-poi-no-rating.png`、`05-poi-unknown-business-status.png`。
 Core Fix Sprint 3 修复后截图：`docs/core-fix-3/01-facility-categories.png`、`02-marker-to-list.png`、`03-overnight-real-comparison.png`、`04-external-actions.png`。
+Real-Use Fix Sprint 4 修复后截图：`docs/real-use-fix-4/01-nav-plan-overview.png`、`02-nav-plan-relay-step1.png`、`03-nav-plan-relay-step2.png`、`04-media-detail-modal.png`、`05-trip-node-infowindow.png`。
 
 ## 审计结论
 
@@ -154,4 +157,5 @@ Core Fix Sprint 3 修复后截图：`docs/core-fix-3/01-facility-categories.png`
 
 1. **界面信息密度与局部视觉细节。** 对应 #38（右栏操作卡片较紧凑，左栏时间轴占用空间，非核心本地样式 Tab 等）。该项为体验优化项，不阻塞核心自驾业务闭环。
 
-Core Fix Sprint 3 已收口 FIX7～10，核心业务功能全闭环。
+Core Fix Sprint 3 收口核心功能缺口；Real-Use Fix Sprint 4 彻底解决第一次真实使用暴露的全程接力导航、沿途真实影像、全线设施 5-Bucket 均匀分布及城镇地点卡交互。核心自驾业务与使用场景已达到真实可落地标准。
+

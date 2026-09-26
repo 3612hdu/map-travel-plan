@@ -30,11 +30,11 @@ export function formatDistance(meters: number): string {
 }
 
 // 沿折线等距抽样锚点（用于走廊搜索 PlaceSearch）
-// intervalMeters: 默认 16000m (配合 PlaceSearch 8000m 半径形成连续重叠走廊)
+// 配合 PlaceSearch 8500m 半径，interval <= 15000m 确保相邻搜索圆 100% 连续重叠
 export function sampleCenters(
   path: [number, number][],
-  intervalMeters = 16000,
-  maxSamples = 36
+  intervalMeters = 15000,
+  maxSamples = 48
 ): [number, number][] {
   if (!path || path.length < 2) return path || [];
 
@@ -46,8 +46,9 @@ export function sampleCenters(
   const total = distances[distances.length - 1];
   if (total <= 0) return [path[0]];
 
-  // 保证长路段与全程无截断覆盖，采样点上限扩展至 maxSamples (36)
-  const count = Math.min(maxSamples, Math.max(3, Math.ceil(total / intervalMeters) + 1));
+  // 保证长路段与全程无截断覆盖，采样点动态匹配实际总长 (0% 到 100% 完整覆盖)
+  const neededCount = Math.ceil(total / intervalMeters) + 1;
+  const count = Math.min(maxSamples, Math.max(3, neededCount));
   const samples: [number, number][] = [];
 
   for (let i = 0; i < count; i++) {
@@ -58,6 +59,90 @@ export function sampleCenters(
   }
 
   return samples;
+}
+
+/**
+ * 测算采样中心圆对整条路线 polyline 的实际空间覆盖率 (0.0 ~ 1.0)
+ * 验证走廊搜索是否实现 >= 95% 全线无盲区覆盖
+ */
+export function calculateRouteCoverage(
+  centers: [number, number][],
+  path: [number, number][],
+  searchRadiusMeters = 8500
+): number {
+  if (!path || path.length < 2) return 1.0;
+  if (!centers || centers.length === 0) return 0;
+
+  const total = routeLength(path);
+  if (total <= 0) return 1.0;
+
+  const testCount = 100;
+  let coveredCount = 0;
+
+  for (let i = 0; i < testCount; i++) {
+    const fraction = i / (testCount - 1);
+    const targetDist = fraction * total;
+
+    let traveled = 0;
+    let testPoint: [number, number] = path[0];
+    for (let j = 1; j < path.length; j++) {
+      const legLen = geoDistance(path[j - 1], path[j]);
+      if (traveled + legLen >= targetDist || j === path.length - 1) {
+        const ratio = legLen > 0 ? (targetDist - traveled) / legLen : 0;
+        testPoint = [
+          path[j - 1][0] + ratio * (path[j][0] - path[j - 1][0]),
+          path[j - 1][1] + ratio * (path[j][1] - path[j - 1][1])
+        ];
+        break;
+      }
+      traveled += legLen;
+    }
+
+    const isCovered = centers.some((center) => geoDistance(center, testPoint) <= searchRadiusMeters);
+    if (isCovered) coveredCount++;
+  }
+
+  return Number((coveredCount / testCount).toFixed(3));
+}
+
+/**
+ * 将 POI 列表按路线进度划分 5 个区间并轮询交错重排 (Round-Robin Interleaving)
+ * 杜绝加油站/充电桩全部堆积在起点 20km，确保前 20 条及展示列表在全程 (0%~100%) 均匀分布
+ */
+export function distributePoisAcrossBuckets<T extends { routeProgress?: number; relevanceScore?: number; distanceToRoute?: number }>(
+  pois: T[],
+  bucketCount = 5
+): T[] {
+  if (pois.length <= 1) return pois;
+
+  const buckets: T[][] = Array.from({ length: bucketCount }, () => []);
+
+  pois.forEach((poi) => {
+    const progress = Math.max(0, Math.min(0.999, poi.routeProgress ?? 0));
+    const bucketIdx = Math.floor(progress * bucketCount);
+    buckets[bucketIdx].push(poi);
+  });
+
+  buckets.forEach((bucket) => {
+    bucket.sort((a, b) => {
+      const scoreDiff = (b.relevanceScore ?? 0) - (a.relevanceScore ?? 0);
+      if (scoreDiff !== 0) return scoreDiff;
+      return (a.distanceToRoute ?? 0) - (b.distanceToRoute ?? 0);
+    });
+  });
+
+  const result: T[] = [];
+  const maxLen = Math.max(...buckets.map((b) => b.length));
+
+  for (let round = 0; round < maxLen; round++) {
+    for (let b = 0; b < bucketCount; b++) {
+      if (round < buckets[b].length) {
+        result.push(buckets[b][round]);
+      }
+    }
+  }
+
+  return result;
 }
 
 // 点到线段的最短距离（米）

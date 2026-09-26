@@ -1,26 +1,50 @@
 import React, { useEffect, useState } from 'react';
+import { Camera, Video } from 'lucide-react';
 import { useTripStore } from '../../store/useTripStore';
-import { VideoPlatform, VideoReference } from '../../types/video';
+import { RouteMedia, MediaPlatform, MediaType } from '../../types/media';
 import { amapService } from '../../services/amapService';
 import { VideoModal } from './VideoModal';
 
 export const VideoTab: React.FC = () => {
   const { videos, activeSegmentId, selectedOptions, segments, mapMode, activeHighlightId, focusHighlight } = useTripStore();
-  const [selectedPlatform, setSelectedPlatform] = useState<VideoPlatform>('all');
-  const [activeModalVideo, setActiveModalVideo] = useState<VideoReference | null>(null);
+  const [selectedPlatform, setSelectedPlatform] = useState<MediaPlatform>('all');
+  const [selectedType, setSelectedType] = useState<MediaType>('all');
+  const [activeModalVideo, setActiveModalVideo] = useState<RouteMedia | null>(null);
+
   const segment = segments.find((item) => item.id === activeSegmentId);
   const optionId = selectedOptions[activeSegmentId] || segment?.chosen;
-  useEffect(() => setSelectedPlatform('all'), [activeSegmentId, optionId, activeHighlightId]);
-  const scoped = videos.filter((video) => video.segmentId === activeSegmentId
-    && (!video.routeOptionIds || (optionId && video.routeOptionIds.includes(optionId)))
-    && (!activeHighlightId || video.highlightId === activeHighlightId));
-  const filteredVideos = scoped.filter((video) => selectedPlatform === 'all' || video.platform === selectedPlatform);
-  const platformName: Record<VideoPlatform, string> = { all: '全部', xiaohongshu: '小红书', douyin: '抖音', bilibili: 'B站' };
 
-  const handleVideoClick = (video: VideoReference) => {
+  useEffect(() => {
+    setSelectedPlatform('all');
+    setSelectedType('all');
+  }, [activeSegmentId, optionId, activeHighlightId]);
+
+  // 按路段、所选方案、高亮亮点范围过滤
+  const scoped = (videos as RouteMedia[]).filter(
+    (item) =>
+      item.segmentId === activeSegmentId &&
+      (!item.routeOptionIds || (optionId && item.routeOptionIds.includes(optionId))) &&
+      (!activeHighlightId || item.highlightId === activeHighlightId)
+  );
+
+  const filteredVideos = scoped.filter((item) => {
+    const platformMatch = selectedPlatform === 'all' || item.platform === selectedPlatform;
+    const typeMatch = selectedType === 'all' || item.type === selectedType;
+    return platformMatch && typeMatch;
+  });
+
+  const platformName: Record<MediaPlatform, string> = {
+    all: '全部平台',
+    bilibili: 'B站',
+    amap: '高德实景',
+    web: '文旅核验',
+    xiaohongshu: '小红书',
+    douyin: '抖音'
+  };
+
+  const handleVideoClick = (video: RouteMedia) => {
     if (video.highlightId) focusHighlight(video.highlightId);
     if (video.coordinate) {
-      // 与亮点关联时让地图先完成区间高亮，然后落到标注的路线参考坐标。
       setTimeout(() => amapService.panTo(video.coordinate!, 13), 80);
     } else if (!video.highlightId && mapMode !== 'segment-focus') {
       useTripStore.getState().enterSegmentDetail(video.segmentId);
@@ -30,33 +54,141 @@ export const VideoTab: React.FC = () => {
 
   return (
     <div className="right-tab-content">
-      <div className="category-filter-bar">
-        {(Object.keys(platformName) as VideoPlatform[]).map((platform) => (
-          <button key={platform} type="button" className={`filter-pill ${selectedPlatform === platform ? 'active' : ''}`}
-            onClick={() => setSelectedPlatform(platform)}>
-            {platformName[platform]} ({platform === 'all' ? scoped.length : scoped.filter((video) => video.platform === platform).length})
-          </button>
-        ))}
+      {/* 媒体类型过滤栏 (全部 / 实景照片 / 视频动态) */}
+      <div className="category-filter-bar" style={{ paddingBottom: '4px' }}>
+        <button
+          type="button"
+          className={`filter-pill ${selectedType === 'all' ? 'active' : ''}`}
+          onClick={() => setSelectedType('all')}
+        >
+          全部影像 ({scoped.length})
+        </button>
+        <button
+          type="button"
+          className={`filter-pill ${selectedType === 'photo' ? 'active' : ''}`}
+          onClick={() => setSelectedType('photo')}
+        >
+          📷 实景照片 ({scoped.filter((m) => m.type === 'photo').length})
+        </button>
+        <button
+          type="button"
+          className={`filter-pill ${selectedType === 'video' ? 'active' : ''}`}
+          onClick={() => setSelectedType('video')}
+        >
+          🎬 视频动态 ({scoped.filter((m) => m.type === 'video').length})
+        </button>
       </div>
+
+      {/* 平台过滤药丸 */}
+      <div className="category-filter-bar" style={{ paddingTop: '2px', borderTop: 'none' }}>
+        {(['all', 'bilibili', 'amap', 'web'] as MediaPlatform[]).map((platform) => {
+          const count = platform === 'all' ? scoped.length : scoped.filter((v) => v.platform === platform).length;
+          if (count === 0 && platform !== 'all') return null;
+          return (
+            <button
+              key={platform}
+              type="button"
+              className={`filter-pill ${selectedPlatform === platform ? 'active' : ''}`}
+              onClick={() => setSelectedPlatform(platform)}
+              style={{ fontSize: '11px', padding: '3px 8px' }}
+            >
+              {platformName[platform]} ({count})
+            </button>
+          );
+        })}
+      </div>
+
       <div className="video-content-wrapper">
-        <div className="video-notice-banner">仅展示当前路段与当前方案关联内容；位置是路线参考点，未经证实为拍摄地。</div>
-        {!filteredVideos.length && <div className="video-empty-state">当前路线范围暂无关联视频</div>}
-        {filteredVideos.map((video, index) => (
-          <button type="button" key={video.id} data-video-id={video.id}
-            className={index === 0 ? 'video-featured-card' : 'video-sub-card'}
-            onClick={() => handleVideoClick(video)}>
-            <div className={index === 0 ? 'video-cover-container' : 'video-sub-cover'}>
-              {video.cover ? <img src={video.cover} alt={video.title} className="video-cover-img" /> : <div className="video-cover-placeholder">{video.platformLabel} · 原平台内容</div>}
-              <span className={`platform-pill-badge ${video.platform}`}>{video.platformLabel}</span>
+        <div className="video-notice-banner">
+          仅展示路线沿途核验实景照片与真实自驾影像；未经证实地点绝不虚标。
+        </div>
+
+        {/* 诚实空状态提示 (杜绝假照片/无关视频) */}
+        {!filteredVideos.length && (
+          <div className="video-empty-state">
+            <div style={{ fontSize: '13px', fontWeight: 700, color: '#475569' }}>
+              暂未收录可靠实景影像
             </div>
-            <div className={index === 0 ? 'video-info-box' : 'video-sub-info'}>
-              <div className={index === 0 ? 'video-title' : 'video-sub-title'}>{video.title}</div>
-              <div className="video-author-row"><span>{video.author || '作者未核验'}</span><span>{video.verificationStatus === 'verified' ? '来源已核验' : video.verificationStatus === 'unavailable' ? '链接不可用' : '内容未核验'}</span></div>
-              {video.coordinateNote && <div className="video-location-note">{video.coordinateNote}</div>}
+            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+              我们坚持人工核验真实影像，绝不使用 AI 伪造照片或无关视频充数
             </div>
-          </button>
-        ))}
+          </div>
+        )}
+
+        {/* 影像列表 */}
+        {filteredVideos.map((item, index) => {
+          const isPhoto = item.type === 'photo';
+
+          return (
+            <button
+              type="button"
+              key={item.id}
+              data-video-id={item.id}
+              data-media-id={item.id}
+              className={index === 0 ? 'video-featured-card' : 'video-sub-card'}
+              onClick={() => handleVideoClick(item)}
+            >
+              <div className={index === 0 ? 'video-cover-container' : 'video-sub-cover'}>
+                {item.cover ? (
+                  <img src={item.cover} alt={item.title} className="video-cover-img" />
+                ) : (
+                  <div
+                    className="video-cover-placeholder"
+                    style={{
+                      background: isPhoto ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : undefined,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    {isPhoto ? <Camera size={22} color="#ffffff" /> : <Video size={22} color="#ffffff" />}
+                    <span style={{ fontSize: '11px', color: '#ffffff', fontWeight: 700 }}>
+                      {item.platformLabel} · {isPhoto ? '实景核验' : '自驾实录'}
+                    </span>
+                  </div>
+                )}
+                <span className={`platform-pill-badge ${item.platform}`}>{item.platformLabel}</span>
+              </div>
+
+              <div className={index === 0 ? 'video-info-box' : 'video-sub-info'}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      background: isPhoto ? '#e0f2fe' : '#ffe4e6',
+                      color: isPhoto ? '#0369a1' : '#be123c',
+                      padding: '1px 5px',
+                      borderRadius: '4px',
+                      fontWeight: 800
+                    }}
+                  >
+                    {isPhoto ? '照片' : '视频'}
+                  </span>
+                  <div className={index === 0 ? 'video-title' : 'video-sub-title'} style={{ margin: 0 }}>
+                    {item.title}
+                  </div>
+                </div>
+
+                <div className="video-author-row">
+                  <span>{item.author || '来源未核验'}</span>
+                  <span>
+                    {item.verificationStatus === 'verified'
+                      ? '来源已核验'
+                      : item.verificationStatus === 'unavailable'
+                      ? '链接不可用'
+                      : '内容未核验'}
+                  </span>
+                </div>
+
+                {item.coordinateNote && <div className="video-location-note">{item.coordinateNote}</div>}
+              </div>
+            </button>
+          );
+        })}
       </div>
+
       <VideoModal video={activeModalVideo} onClose={() => setActiveModalVideo(null)} />
     </div>
   );

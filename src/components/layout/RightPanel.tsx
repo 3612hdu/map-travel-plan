@@ -18,7 +18,7 @@ export const RightPanel: React.FC = () => {
           onClick={() => setActiveContentTab('videos')}
         >
           <PlayCircle size={16} />
-          <span>沿途视频</span>
+          <span>沿途影像</span>
         </button>
         <button
           type="button"

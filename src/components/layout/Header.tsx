@@ -5,7 +5,7 @@ import { CorridorSearchBox } from '../search/CorridorSearchBox';
 import { formatDuration } from '../../utils/geo';
 
 export const Header: React.FC = () => {
-  const { segments, selectedOptions, routeResults } = useTripStore();
+  const { segments, selectedOptions, routeResults, setIsNavigationPlanModalOpen } = useTripStore();
 
   // 聚合所有已选路线的高德实时算路数据
   let totalDistanceMeters = 0;
@@ -83,10 +83,30 @@ export const Header: React.FC = () => {
           <span className="stat-val scenic-val">{scenicRes ? `${(scenicRes.distance / 1000).toFixed(0)} km` : '计算中…'}</span>
         </div>
 
-        <div className="header-banner-badge">
-          <Sun size={14} color="#eab308" />
-          <span>一路山水 两天刚好</span>
-        </div>
+        <button
+          type="button"
+          id="btn-header-nav-plan"
+          onClick={() => setIsNavigationPlanModalOpen(true)}
+          style={{
+            background: '#059669',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '9px',
+            padding: '7px 14px',
+            fontSize: '12px',
+            fontWeight: 800,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            boxShadow: '0 2px 8px rgba(5,150,105,0.3)',
+            marginLeft: '4px'
+          }}
+          title="查看并启动全程自驾接力导航计划"
+        >
+          <Navigation size={13} />
+          <span>全程导航计划</span>
+        </button>
       </div>
     </header>
   );

@@ -1,6 +1,6 @@
 import AMapLoader from '@amap/amap-jsapi-loader';
 import { AMAP_CONFIG, initAMapSecurity } from '../config/amap';
-import { Stop, Segment, RouteOption, OvernightStop } from '../types/trip';
+import { Stop, Segment, RouteOption, OvernightStop, TripNodeInfo } from '../types/trip';
 import { RoutePoi, RealDetourResult } from '../types/poi';
 import { MapMode, RouteCalcResult } from '../types/map';
 import { verifiedStops } from '../data/stops';
@@ -18,6 +18,7 @@ class AMapService {
   private highlightLayer: any = null;
   private highlightedPath: [number, number][] = [];
   private markerLayers: any[] = [];
+  private tripNodeMarkers: any[] = [];
   private overnightMarker: any = null;
   private infoWindow: any = null;
   private isLoaded = false;
@@ -484,6 +485,160 @@ class AMapService {
     `;
     this.infoWindow.setContent(html);
     this.infoWindow.open(this.map, overnightStop.coord);
+  }
+
+  // 清空路线城镇/关键节点 Markers
+  clearTripNodeMarkers() {
+    if (!this.map) return;
+    if (this.tripNodeMarkers.length > 0) {
+      this.tripNodeMarkers.forEach((m) => this.map.remove(m));
+      this.tripNodeMarkers = [];
+    }
+  }
+
+  // 渲染 7 个核心城镇与起终点可交互节点 Markers
+  renderTripNodeMarkers(
+    nodes: TripNodeInfo[],
+    onSelectSegment?: (segmentId: string) => void,
+    onSearchNearStop?: (stopName: string) => void
+  ) {
+    if (!this.map || !this.api) return;
+    this.clearTripNodeMarkers();
+
+    nodes.forEach((node) => {
+      const isStart = node.role === 'tripStart';
+      const isEnd = node.role === 'tripEnd';
+      const isDayEnd = node.role === 'dayEnd';
+
+      const bg = isStart ? '#059669' : isEnd ? '#dc2626' : isDayEnd ? '#4338ca' : '#0284c7';
+      const icon = isStart ? '🚩' : isEnd ? '🏁' : isDayEnd ? '🛏' : '📍';
+
+      const content = document.createElement('div');
+      content.className = 'trip-node-marker';
+      content.style.cssText = `
+        background: ${bg};
+        color: #ffffff;
+        border: 2px solid #ffffff;
+        border-radius: 99px;
+        padding: 3px 8px;
+        font-size: 11px;
+        font-weight: 800;
+        box-shadow: 0 3px 12px rgba(0,0,0,0.22);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        white-space: nowrap;
+        transform: translate(-50%, -50%);
+        z-index: ${isStart || isEnd ? 200 : 150};
+      `;
+      content.innerHTML = `
+        <span style="font-size: 11.5px;">${icon}</span>
+        <span>${node.name}</span>
+      `;
+
+      const marker = new this.api.Marker({
+        position: node.coord,
+        content,
+        zIndex: isStart || isEnd ? 200 : 150
+      });
+
+      marker.on('click', () => {
+        this.openTripNodeInfoWindow(node, onSelectSegment, onSearchNearStop);
+      });
+
+      this.map.add(marker);
+      this.tripNodeMarkers.push(marker);
+    });
+  }
+
+  // 打开关键城镇/起终点信息卡
+  openTripNodeInfoWindow(
+    node: TripNodeInfo,
+    onSelectSegment?: (segmentId: string) => void,
+    onSearchNearStop?: (stopName: string) => void
+  ) {
+    if (!this.map || !this.api || !this.infoWindow) return;
+
+    const isStart = node.role === 'tripStart';
+    const isEnd = node.role === 'tripEnd';
+    const isDayEnd = node.role === 'dayEnd';
+    const badgeBg = isStart ? '#ecfdf5' : isEnd ? '#fef2f2' : isDayEnd ? '#e0e7ff' : '#f0f9ff';
+    const badgeColor = isStart ? '#059669' : isEnd ? '#dc2626' : isDayEnd ? '#4338ca' : '#0284c7';
+
+    const photoHtml = node.photoUrl
+      ? `<div style="margin-bottom: 8px;">
+           <img src="${node.photoUrl}" alt="${node.name}" style="width: 100%; max-height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #e2e8f0;" />
+           <div style="font-size: 10px; color: #64748b; margin-top: 2px;">实景核验：${node.photoTitle || node.name}</div>
+         </div>`
+      : `<div style="padding: 6px 8px; background: #f8fafc; border-radius: 6px; border: 1px dashed #cbd5e1; font-size: 10.5px; color: #94a3b8; text-align: center; margin-bottom: 8px;">
+           暂无实景照片（非AI生成）
+         </div>`;
+
+    const etaHtml = node.etaText
+      ? `<div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 6px; background: #f8fafc; padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0;">
+           <span style="color: #64748b;">计划时间:</span>
+           <strong style="color: #0f172a;">${node.etaText}</strong>
+         </div>`
+      : '';
+
+    const html = `
+      <div style="padding: 10px; font-family: system-ui, -apple-system, sans-serif; max-width: 280px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+          <span style="background: ${badgeBg}; color: ${badgeColor}; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 800;">
+            ${node.roleLabel}
+          </span>
+          <span style="font-size: 10.5px; color: #64748b; font-weight: 600;">
+            ${node.dayText}
+          </span>
+        </div>
+
+        <div style="font-weight: 800; font-size: 14.5px; color: #0f172a; margin-bottom: 2px; line-height: 1.3;">
+          ${node.name}
+        </div>
+        <div style="font-size: 11px; color: #64748b; margin-bottom: 8px;">
+          ${node.address || '湖北自驾走廊关键节点'}
+        </div>
+
+        ${photoHtml}
+        ${etaHtml}
+
+        <div style="display: flex; gap: 6px; margin-top: 8px;">
+          <button id="btn-node-view-segment" style="
+            flex: 1; background: #0284c7; color: #ffffff; border: none; border-radius: 6px;
+            padding: 6px 8px; font-size: 11px; font-weight: 700; cursor: pointer;
+          ">
+            查看此路段
+          </button>
+          <button id="btn-node-search-facilities" style="
+            flex: 1; background: #f1f5f9; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 6px;
+            padding: 6px 8px; font-size: 11px; font-weight: 700; cursor: pointer;
+          ">
+            搜索周边设施
+          </button>
+        </div>
+      </div>
+    `;
+
+    this.infoWindow.setContent(html);
+    this.infoWindow.open(this.map, node.coord);
+
+    setTimeout(() => {
+      const btnView = document.getElementById('btn-node-view-segment');
+      if (btnView && onSelectSegment) {
+        btnView.onclick = () => {
+          onSelectSegment(node.segmentId);
+          this.infoWindow.close();
+        };
+      }
+      const btnSearch = document.getElementById('btn-node-search-facilities');
+      if (btnSearch && onSearchNearStop) {
+        btnSearch.onclick = () => {
+          onSearchNearStop(node.name);
+          this.infoWindow.close();
+        };
+      }
+    }, 80);
   }
 
   // 聚焦到指定路段或全程

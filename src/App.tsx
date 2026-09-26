@@ -4,10 +4,11 @@ import { SidebarLeft } from './components/layout/SidebarLeft';
 import { CenterMapArea } from './components/layout/CenterMapArea';
 import { RightPanel } from './components/layout/RightPanel';
 import { OvernightDecisionModal } from './components/overnight/OvernightDecisionModal';
+import { NavigationPlanModal } from './components/navigation/NavigationPlanModal';
 import { useTripStore } from './store/useTripStore';
 
 export const App: React.FC = () => {
-  useTripStore();
+  const { isNavigationPlanModalOpen, setIsNavigationPlanModalOpen } = useTripStore();
   if (typeof window !== 'undefined') {
     Object.defineProperty(window, '__tripStore', {
       get: () => useTripStore.getState(),
@@ -24,6 +25,10 @@ export const App: React.FC = () => {
         <RightPanel />
       </div>
       <OvernightDecisionModal />
+      <NavigationPlanModal
+        isOpen={isNavigationPlanModalOpen}
+        onClose={() => setIsNavigationPlanModalOpen(false)}
+      />
     </div>
   );
 };

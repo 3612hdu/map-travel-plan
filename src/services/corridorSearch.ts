@@ -5,7 +5,11 @@ import {
   sampleCenters,
   pointToPolylineDistanceKm,
   estimateDetourKm,
-  classifyDetourGrade
+  classifyDetourGrade,
+  routeLength,
+  projectPointOntoRoute,
+  calculateRouteCoverage,
+  distributePoisAcrossBuckets
 } from '../utils/geo';
 import { FACILITY_CATEGORIES } from '../config/poiTypes';
 
@@ -49,7 +53,8 @@ export const corridorSearchStats = {
   peakConcurrency: 0,
   currentInFlight: 0,
   discardedGenerations: 0,
-  cacheSize: 0
+  cacheSize: 0,
+  lastRouteCoverage: 1.0
 };
 
 // 暴露到全局 window 供测试断言
@@ -261,8 +266,9 @@ export async function searchCorridorPois(
         return [];
       }
 
-      // 沿道路抽样：每 16km 取一个中心点，最高允许 36 个点，配合 8.5km 半径形成重叠走廊
-      const centers = sampleCenters(path, 16000, 36);
+      // 沿道路抽样：每 15km 取一个中心点，最高允许 48 个点，配合 8.5km 半径形成重叠连续走廊
+      const centers = sampleCenters(path, 15000, 48);
+      corridorSearchStats.lastRouteCoverage = calculateRouteCoverage(centers, path, 8500);
 
       const placeSearchConfig: any = {
         pageSize: 10,
@@ -379,6 +385,11 @@ export async function searchCorridorPois(
             segmentId
           );
 
+          const totalPathLen = routeLength(path);
+          const proj = projectPointOntoRoute(coord, path);
+          const routeProgress = totalPathLen > 0 ? Math.max(0, Math.min(1, proj.distanceAlongRouteMeters / totalPathLen)) : 0;
+          const progressBucket = Math.min(4, Math.floor(routeProgress * 5));
+
           uniqueMap.set(id, {
             id,
             name: p.name,
@@ -394,6 +405,9 @@ export async function searchCorridorPois(
             rating: ratingVal,
             priceLevel,
             relevanceScore,
+            routeProgress,
+            distanceAlongRouteMeters: proj.distanceAlongRouteMeters,
+            progressBucket,
             tags: [
               detourGrade === 'direct' ? '路边顺路' : `预计绕行约 +${estimatedDetourKmVal}km`,
               '高德地点搜索'
@@ -412,12 +426,15 @@ export async function searchCorridorPois(
         return [];
       }
 
-      // 智能排序：按综合相关度评分降序，得分相近按距路线垂距升序
-      const sortedResults = Array.from(uniqueMap.values()).sort((a, b) => {
-        const scoreDiff = (b.relevanceScore ?? 0) - (a.relevanceScore ?? 0);
-        if (scoreDiff !== 0) return scoreDiff;
-        return a.distanceToRoute - b.distanceToRoute;
-      });
+      // 智能排序：对加油站/充电桩采用 5-Bucket 轮询交错排序，确保全线补能分布均衡；其他分类按综合相关度降序
+      const isEnergyCategory = category === 'gas' || category === 'ev' || /油|电|充|桩/.test(searchWord);
+      const sortedResults = isEnergyCategory
+        ? distributePoisAcrossBuckets(Array.from(uniqueMap.values()), 5)
+        : Array.from(uniqueMap.values()).sort((a, b) => {
+            const scoreDiff = (b.relevanceScore ?? 0) - (a.relevanceScore ?? 0);
+            if (scoreDiff !== 0) return scoreDiff;
+            return a.distanceToRoute - b.distanceToRoute;
+          });
 
       // 写入缓存
       searchCache.set(cacheKey, { timestamp: now, data: sortedResults });

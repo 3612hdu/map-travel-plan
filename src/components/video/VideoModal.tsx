@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { X, ExternalLink, Camera, Video, MapPin, CheckCircle2 } from 'lucide-react';
 import { RouteMedia } from '../../types/media';
 
@@ -19,7 +20,7 @@ export const VideoModal: React.FC<VideoModalProps> = ({ video, onClose }) => {
     ? `https://player.bilibili.com/player.html?bvid=${bvid}&autoplay=0&danmaku=0`
     : undefined;
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label={video.title}>
       <div
         className="modal-content-card"
@@ -72,7 +73,7 @@ export const VideoModal: React.FC<VideoModalProps> = ({ video, onClose }) => {
         </div>
 
         {/* 弹窗内容 */}
-        <div className="modal-body" style={{ padding: '20px', textAlign: 'center' }}>
+        <div className="modal-body" tabIndex={0} aria-label="影像详情" style={{ padding: '20px', textAlign: 'center' }}>
           {embedUrl ? (
             <iframe
               src={embedUrl}
@@ -186,6 +187,7 @@ export const VideoModal: React.FC<VideoModalProps> = ({ video, onClose }) => {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

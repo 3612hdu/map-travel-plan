@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test:ui": "node test-scroll-recommendations.mjs",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview"

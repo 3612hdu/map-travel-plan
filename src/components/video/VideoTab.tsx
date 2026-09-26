@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Camera, Video } from 'lucide-react';
 import { useTripStore } from '../../store/useTripStore';
 import { RouteMedia, MediaPlatform, MediaType } from '../../types/media';
@@ -6,10 +6,11 @@ import { amapService } from '../../services/amapService';
 import { VideoModal } from './VideoModal';
 
 export const VideoTab: React.FC = () => {
-  const { videos, activeSegmentId, selectedOptions, segments, mapMode, activeHighlightId, focusHighlight } = useTripStore();
+  const { videos, activeSegmentId, activeDay, selectedOptions, segments, mapMode, activeHighlightId, focusHighlight } = useTripStore();
   const [selectedPlatform, setSelectedPlatform] = useState<MediaPlatform>('all');
   const [selectedType, setSelectedType] = useState<MediaType>('all');
   const [activeModalVideo, setActiveModalVideo] = useState<RouteMedia | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const segment = segments.find((item) => item.id === activeSegmentId);
   const optionId = selectedOptions[activeSegmentId] || segment?.chosen;
@@ -17,15 +18,21 @@ export const VideoTab: React.FC = () => {
   useEffect(() => {
     setSelectedPlatform('all');
     setSelectedType('all');
-  }, [activeSegmentId, optionId, activeHighlightId]);
+  }, [activeSegmentId, optionId, activeHighlightId, mapMode, activeDay]);
+
+  useEffect(() => {
+    contentRef.current?.scrollTo({ top: 0 });
+  }, [activeSegmentId, optionId, activeHighlightId, mapMode, activeDay, selectedPlatform, selectedType]);
 
   // 按路段、所选方案、高亮亮点范围过滤
-  const routeMedia = (videos as RouteMedia[]).filter(
-    (item) =>
-      item.verificationStatus === 'verified' &&
-      item.segmentId === activeSegmentId &&
-      (!item.routeOptionIds || (optionId && item.routeOptionIds.includes(optionId)))
-  );
+  const routeMedia = (videos as RouteMedia[]).filter((item) => {
+    const itemSegment = segments.find((seg) => seg.id === item.segmentId);
+    if (!itemSegment || item.verificationStatus !== 'verified') return false;
+    const selectedOption = selectedOptions[itemSegment.id] || itemSegment.chosen;
+    const inScope = mapMode === 'trip-overview'
+      || (mapMode === 'day-overview' ? itemSegment.day === activeDay : item.segmentId === activeSegmentId);
+    return inScope && (!item.routeOptionIds || item.routeOptionIds.includes(selectedOption));
+  });
   const highlightMedia = activeHighlightId
     ? routeMedia.filter((item) => item.highlightId === activeHighlightId)
     : [];
@@ -47,7 +54,8 @@ export const VideoTab: React.FC = () => {
   };
 
   const handleVideoClick = (video: RouteMedia) => {
-    if (video.highlightId) focusHighlight(video.highlightId);
+    if (video.highlightId && video.segmentId === activeSegmentId
+      && mapMode !== 'trip-overview' && mapMode !== 'day-overview') focusHighlight(video.highlightId);
     if (video.coordinate) {
       setTimeout(() => amapService.panTo(video.coordinate!, 13), 80);
     } else if (!video.highlightId && mapMode !== 'segment-focus') {
@@ -57,7 +65,11 @@ export const VideoTab: React.FC = () => {
   };
 
   return (
-    <div className="right-tab-content">
+    <div className="right-tab-content media-tab-content">
+      <div className="media-scope-summary">
+        {mapMode === 'trip-overview' ? '全程影像' : mapMode === 'day-overview' ? `第 ${activeDay} 天影像` : segment?.title}
+        {' · '}{scoped.length} 条
+      </div>
       {/* 媒体类型过滤栏 (全部 / 实景照片 / 视频动态) */}
       <div className="category-filter-bar" style={{ paddingBottom: '4px' }}>
         <button
@@ -102,7 +114,7 @@ export const VideoTab: React.FC = () => {
         })}
       </div>
 
-      <div className="video-content-wrapper">
+      <div className="video-content-wrapper" ref={contentRef} tabIndex={0} aria-label="沿途影像列表">
         <div className="video-notice-banner">
           {activeHighlightId && highlightMedia.length === 0
             ? '当前亮点暂无专属影像，先展示本路段已核验素材。'

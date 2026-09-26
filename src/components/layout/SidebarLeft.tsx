@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { Calendar, Compass, Bookmark, Save, Share2, Star, Layers, Bed, Clock, Navigation } from 'lucide-react';
+import { Calendar, Compass, Bookmark, Share2, Star, Layers, Bed, Navigation } from 'lucide-react';
 import { useTripStore } from '../../store/useTripStore';
 import { formatDuration } from '../../utils/geo';
 import { TripTimeline } from '../timeline/TripTimeline';
+import { RecommendationsPanel } from '../recommendations/RecommendationsPanel';
+import { Segment } from '../../types/trip';
 
 export const SidebarLeft: React.FC = () => {
   const {
@@ -20,8 +22,7 @@ export const SidebarLeft: React.FC = () => {
 
   const [activeNavTab, setActiveNavTab] = useState<'plan' | 'recommend' | 'saved'>('plan');
 
-  const day1Segments = segments.filter((s) => s.day === 1);
-  const day2Segments = segments.filter((s) => s.day === 2);
+  const [shareStatus, setShareStatus] = useState('');
 
   const handleSelectSegment = (segId: string) => {
     setActiveSegment(segId);
@@ -34,7 +35,7 @@ export const SidebarLeft: React.FC = () => {
     setActiveDay(day);
   };
 
-  const renderSegmentItem = (seg: any, globalIdx: number) => {
+  const renderSegmentItem = (seg: Segment, globalIdx: number) => {
     const isActive = seg.id === activeSegmentId;
     const optId = selectedOptions[seg.id] || seg.chosen;
     const res = routeResults[`${seg.id}:${optId}`];
@@ -45,7 +46,8 @@ export const SidebarLeft: React.FC = () => {
     const isStarSegment = seg.id === 's6';
 
     return (
-      <div
+      <button
+        type="button"
         key={seg.id}
         className={`segment-card ${isActive ? 'active' : ''}`}
         onClick={() => handleSelectSegment(seg.id)}
@@ -76,17 +78,18 @@ export const SidebarLeft: React.FC = () => {
             </span>
           ))}
         </div>
-      </div>
+      </button>
     );
   };
 
   return (
     <aside className="sidebar-left" aria-label="自驾行程分段">
       {/* 顶部标签 */}
-      <div className="sidebar-nav-tabs">
+      <div className="sidebar-nav-tabs" aria-label="行程内容">
         <button
           type="button"
           className={`nav-tab-btn ${activeNavTab === 'plan' ? 'active' : ''}`}
+          aria-pressed={activeNavTab === 'plan'}
           onClick={() => setActiveNavTab('plan')}
         >
           <Calendar size={13} />
@@ -95,14 +98,16 @@ export const SidebarLeft: React.FC = () => {
         <button
           type="button"
           className={`nav-tab-btn ${activeNavTab === 'recommend' ? 'active' : ''}`}
+          aria-pressed={activeNavTab === 'recommend'}
           onClick={() => setActiveNavTab('recommend')}
         >
           <Compass size={13} />
-          <span>沿途推荐</span>
+          <span>周边推荐</span>
         </button>
         <button
           type="button"
           className={`nav-tab-btn ${activeNavTab === 'saved' ? 'active' : ''}`}
+          aria-pressed={activeNavTab === 'saved'}
           onClick={() => setActiveNavTab('saved')}
         >
           <Bookmark size={13} />
@@ -152,14 +157,15 @@ export const SidebarLeft: React.FC = () => {
       </div>
 
       {/* 行程分天与分段列表 */}
-      <div className="sidebar-content-scroll">
+      <div className="sidebar-content-scroll" key={activeNavTab} tabIndex={0} aria-label={activeNavTab === 'plan' ? '行程列表' : activeNavTab === 'recommend' ? '周边推荐列表' : '收藏列表'}>
+        {activeNavTab !== 'plan' ? <RecommendationsPanel savedOnly={activeNavTab === 'saved'} /> : <>
         {/* 行程时间轴卡片 */}
         <TripTimeline dayFilter={activeDay} />
 
         {/* 行程分天与分段列表 */}
         {(() => {
-          let globalCounter = 1;
-          const uniqueDays = Array.from(new Set(segments.map((s) => s.day))).sort((a, b) => a - b);
+          const uniqueDays = Array.from(new Set(segments.map((s) => s.day)))
+            .filter((day) => activeDay === 'all' || day === activeDay).sort((a, b) => a - b);
 
           return uniqueDays.map((d) => {
             const daySegments = segments.filter((s) => s.day === d);
@@ -181,7 +187,7 @@ export const SidebarLeft: React.FC = () => {
                     <span className="day-meta-text">{daySegments.length}段 · {plannedDaySegments.length === daySegments.length ? `${Math.round(totalKm)} km` : `已规划 ${plannedDaySegments.length}/${daySegments.length} 段`}</span>
                   </div>
                 </div>
-                {daySegments.map((seg) => renderSegmentItem(seg, globalCounter++))}
+                {daySegments.map((seg) => renderSegmentItem(seg, segments.findIndex((item) => item.id === seg.id) + 1))}
 
                 {/* 住宿决策提示卡 (展示在第 1 天收车位置) */}
                 {d === 1 && (
@@ -239,7 +245,10 @@ export const SidebarLeft: React.FC = () => {
             );
           });
         })()}
+        </>}
       </div>
+
+      {shareStatus && <div className="sidebar-share-status" role="status">{shareStatus}</div>}
 
       {/* 底部保存与分享操作 */}
       <div className="sidebar-footer-actions">
@@ -266,9 +275,14 @@ export const SidebarLeft: React.FC = () => {
         <button
           type="button"
           className="btn-sidebar-action outline"
-          onClick={() => {
-            navigator.clipboard?.writeText(window.location.href);
-            alert('行程链接已复制到剪贴板！');
+          onClick={async () => {
+            try {
+              if (!navigator.clipboard) throw new Error('clipboard unavailable');
+              await navigator.clipboard.writeText(window.location.href);
+              setShareStatus('网站链接已复制，可发给同行伙伴。');
+            } catch {
+              setShareStatus('未能自动复制，请复制浏览器地址栏中的链接。');
+            }
           }}
         >
           <Share2 size={14} />

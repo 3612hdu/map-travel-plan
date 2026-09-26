@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { ChevronDown, ChevronUp, Layers, MapPin } from 'lucide-react';
 import { useTripStore } from '../../store/useTripStore';
 import { FacilityCategory, RoutePoi } from '../../types/poi';
@@ -30,11 +30,13 @@ export const FacilityTab: React.FC = () => {
 
   const [isSearching, setIsSearching] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
   const currentSeg = segments.find((s) => s.id === activeSegmentId);
 
   // 搜索条件变化时，默认收起并重置为展示 Top 20
   useEffect(() => {
     setIsExpanded(false);
+    listRef.current?.scrollTo({ top: 0 });
   }, [searchQuery, selectedCategory, searchScope, activeSegmentId]);
 
   const currentSegOptId = currentSeg ? (selectedOptions[currentSeg.id] || currentSeg.chosen) : '';
@@ -282,7 +284,7 @@ export const FacilityTab: React.FC = () => {
       </div>
 
       {/* 设施卡片滚动列表 */}
-      <div className="facilities-scroll-list">
+      <div className="facilities-scroll-list" ref={listRef} tabIndex={0} aria-label="沿途设施列表">
         {filteredFacilities.length === 0 ? (
           <div
             style={{

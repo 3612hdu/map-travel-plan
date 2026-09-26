@@ -9,10 +9,14 @@ import { initialVideos } from '../data/videoData';
 import { RoutePreference, DEFAULT_PREFERENCE } from '../types/preference';
 import { amapService } from '../services/amapService';
 import { reconstructTripWithOvernight, buildDayPlans } from '../utils/tripReconstruction';
+import { readSavedRecommendations, SAVED_RECOMMENDATIONS_KEY } from '../utils/recommendations';
 
 export const defaultOvernightCandidates: OvernightStop[] = [];
 
 interface TripStore {
+  savedRecommendationIds: string[];
+  favoritesPersisted: boolean;
+  toggleSavedRecommendation: (id: string) => void;
   // 行程与段落
   trip: Trip;
   segments: Segment[];
@@ -104,6 +108,20 @@ export const useTripStore = create<TripStore>((set, get) => {
   });
 
   return {
+    savedRecommendationIds: readSavedRecommendations(),
+    favoritesPersisted: true,
+    toggleSavedRecommendation: (id) => set((state) => {
+      const savedRecommendationIds = state.savedRecommendationIds.includes(id)
+        ? state.savedRecommendationIds.filter((saved) => saved !== id)
+        : [...state.savedRecommendationIds, id];
+      let favoritesPersisted = true;
+      try {
+        localStorage.setItem(SAVED_RECOMMENDATIONS_KEY, JSON.stringify(savedRecommendationIds));
+      } catch {
+        favoritesPersisted = false;
+      }
+      return { savedRecommendationIds, favoritesPersisted };
+    }),
     trip: tripMeta,
     segments: initialSegments,
     activeDay: 'all', // 默认展示全程路线
@@ -352,7 +370,12 @@ export const useTripStore = create<TripStore>((set, get) => {
       });
     },
 
-    setActiveContentTab: (tab) => set({ activeContentTab: tab }),
+    setActiveContentTab: (tab) => set((state) => ({
+      activeContentTab: tab,
+      mobileActiveTab: state.mobileActiveTab === 'media' || state.mobileActiveTab === 'facilities'
+        ? tab === 'videos' ? 'media' : 'facilities'
+        : state.mobileActiveTab
+    })),
     setMobileActiveTab: (tab) => {
       set({ mobileActiveTab: tab });
       if (tab === 'media') {

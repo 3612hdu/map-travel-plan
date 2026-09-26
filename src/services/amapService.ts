@@ -869,6 +869,19 @@ class AMapService {
     if (!this.map) return;
     this.map.setZoomAndCenter(zoom, coord);
   }
+
+  showStop(stop: Stop) {
+    if (!this.map || !this.infoWindow) return;
+    this.panTo(stop.coord, 13);
+    const content = document.createElement('div');
+    const title = document.createElement('strong');
+    title.textContent = stop.name;
+    const address = document.createElement('p');
+    address.textContent = stop.address || '行程参考位置';
+    content.append(title, address);
+    this.infoWindow.setContent(content);
+    this.infoWindow.open(this.map, stop.coord);
+  }
 }
 
 export const amapService = new AMapService();

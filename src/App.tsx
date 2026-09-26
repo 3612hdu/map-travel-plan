@@ -18,7 +18,7 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="app-root-container" style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
+    <div className="app-root-container">
       <Header />
       <div className={`app-workspace mobile-view-${mobileActiveTab}`}>
         <SidebarLeft />

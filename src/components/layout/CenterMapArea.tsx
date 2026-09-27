@@ -5,6 +5,7 @@ import { amapService } from '../../services/amapService';
 import { TrafficLegend } from '../map/TrafficLegend';
 import { RouteOptionCards } from '../route/RouteOptionCards';
 import { RouteHighlights } from '../route/RouteHighlights';
+import { TripOverview } from '../route/TripOverview';
 import { verifiedStops } from '../../data/stops';
 import { startAmapNavigation } from '../../services/navigationService';
 import { compileTripNodes } from '../../utils/tripNodes';
@@ -40,13 +41,14 @@ export const CenterMapArea: React.FC = () => {
   } = useTripStore();
 
   const currentSeg = segments.find((s) => s.id === activeSegmentId);
+  const isOverview = mapMode === 'trip-overview' || mapMode === 'day-overview';
   const appliedViewportRevision = useRef(-1);
   const appliedHighlightId = useRef<string | null>(null);
   const detailPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     detailPanelRef.current?.scrollTo({ top: 0 });
-  }, [activeSegmentId]);
+  }, [activeSegmentId, activeDay, mapMode]);
 
   // 初始化高德地图
   useEffect(() => {
@@ -269,7 +271,10 @@ export const CenterMapArea: React.FC = () => {
             <span>高德实路引擎</span>
           </div>
 
-          {currentSeg && mapMode !== 'trip-overview' && (
+          {mapMode === 'day-overview' && (
+            <div className="map-control-pill"><span>第{activeDay}天总览</span></div>
+          )}
+          {currentSeg && !isOverview && (
             <div className="map-control-pill">
               <span>第{currentSeg.day}天: {currentSeg.title}</span>
             </div>
@@ -297,9 +302,9 @@ export const CenterMapArea: React.FC = () => {
         <TrafficLegend />
       </div>
 
-      {/* 地图下方：所选路段详情、3卡方案对比、路线亮点 */}
-      <div className="center-bottom-panel" ref={detailPanelRef} tabIndex={0} aria-label="路段方案和路线亮点">
-        {currentSeg && (
+      {/* 地图下方随当前范围展示概览或路段详情 */}
+      <div className="center-bottom-panel" ref={detailPanelRef} tabIndex={0} aria-label={isOverview ? '行程概览' : '路段方案和路线亮点'}>
+        {isOverview ? <TripOverview /> : currentSeg && (
           <>
             <div className="segment-active-header">
               <div>

@@ -695,6 +695,32 @@ input {
   margin-top: 2px;
 }
 
+.trip-overview-header { gap: 12px; flex-wrap: wrap; }
+.trip-overview-route { margin-top: 4px; font-size: 13px; font-weight: 650; }
+.trip-overview-nav {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 8px 14px; border-radius: 10px; background: var(--scenic);
+  color: #fff; font-size: 12px; font-weight: 750; white-space: nowrap;
+}
+.trip-overview-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.trip-overview-stats > div { padding: 12px; background: #f8fafc; border: 1px solid var(--border-light); border-radius: 12px; }
+.trip-overview-stats dt { font-size: 11px; color: var(--text-secondary); }
+.trip-overview-stats dd { margin-top: 4px; font-size: 16px; font-weight: 800; overflow-wrap: anywhere; }
+.trip-overview-note { margin-top: 10px; color: #64748b; font-size: 11.5px; line-height: 1.6; }
+.trip-overview-days { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.trip-overview-day { padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; }
+.trip-overview-day-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+.trip-overview-day-heading strong { color: var(--primary); font-size: 12px; }
+.trip-overview-day-heading span { font-size: 11px; color: #64748b; }
+.trip-overview-day-route { font-size: 12px; font-weight: 650; margin-top: 6px; overflow-wrap: anywhere; }
+.trip-overview-segments { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.trip-overview-segments button { padding: 6px 8px; border-radius: 6px; background: var(--primary-light); color: #1d4ed8; font-size: 11px; text-align: left; overflow-wrap: anywhere; }
+.trip-overview-segments button:hover { background: #dbeafe; }
+@media (max-width: 1200px) {
+  .trip-overview-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .trip-overview-days { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* 路线方案三卡 (对齐图 01, 02) */
 .route-options-grid {
   display: grid;

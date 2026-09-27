@@ -12,6 +12,7 @@ export const SidebarLeft: React.FC = () => {
     activeDay,
     setActiveDay,
     activeSegmentId,
+    mapMode,
     setActiveSegment,
     selectedOptions,
     routeResults,
@@ -36,7 +37,7 @@ export const SidebarLeft: React.FC = () => {
   };
 
   const renderSegmentItem = (seg: Segment, globalIdx: number) => {
-    const isActive = seg.id === activeSegmentId;
+    const isActive = seg.id === activeSegmentId && (mapMode === 'segment-selected' || mapMode === 'segment-focus');
     const optId = selectedOptions[seg.id] || seg.chosen;
     const res = routeResults[`${seg.id}:${optId}`];
 

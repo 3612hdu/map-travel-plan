@@ -21,6 +21,7 @@ class AMapService {
   private tripNodeMarkers: any[] = [];
   private overnightMarker: any = null;
   private infoWindow: any = null;
+  private infoWindowOwner: 'node' | 'poi' | 'overnight' | null = null;
   private isLoaded = false;
   private loadPromise: Promise<any> | null = null;
 
@@ -91,6 +92,7 @@ class AMapService {
 
     this.map = new api.Map(containerId, {
       viewMode: '2D',
+      resizeEnable: true,
       zoom: 8,
       center: [112.9, 31.75], // 湖北中北部（黄冈至郧阳走廊中心）
       mapStyle: 'amap://styles/normal'
@@ -467,6 +469,7 @@ class AMapService {
 
   openOvernightInfoWindow(overnightStop: OvernightStop) {
     if (!this.map || !this.api || !this.infoWindow) return;
+    this.infoWindowOwner = 'overnight';
     const html = `
       <div style="padding: 10px; font-family: system-ui, -apple-system, sans-serif; max-width: 280px;">
         <div style="font-size: 10.5px; color: #4338ca; background: #e0e7ff; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-bottom: 6px; font-weight: 700;">
@@ -507,7 +510,8 @@ class AMapService {
   renderTripNodeMarkers(
     nodes: TripNodeInfo[],
     onSelectSegment?: (segmentId: string) => void,
-    onSearchNearStop?: (stopName: string) => void
+    onShowFacilities?: (segmentId: string) => void,
+    onShowMedia?: (segmentId: string) => void
   ) {
     if (!this.map || !this.api) return;
     this.clearTripNodeMarkers();
@@ -551,7 +555,7 @@ class AMapService {
       });
 
       marker.on('click', () => {
-        this.openTripNodeInfoWindow(node, onSelectSegment, onSearchNearStop);
+        this.openTripNodeInfoWindow(node, onSelectSegment, onShowFacilities, onShowMedia);
       });
 
       this.map.add(marker);
@@ -559,93 +563,38 @@ class AMapService {
     });
   }
 
-  // 打开关键城镇/起终点信息卡
+  // 节点弹窗只保留操作入口；详细内容在对应路段面板中显示。
   openTripNodeInfoWindow(
     node: TripNodeInfo,
     onSelectSegment?: (segmentId: string) => void,
-    onSearchNearStop?: (stopName: string) => void
+    onShowFacilities?: (segmentId: string) => void,
+    onShowMedia?: (segmentId: string) => void
   ) {
     if (!this.map || !this.api || !this.infoWindow) return;
-
-    const isStart = node.role === 'tripStart';
-    const isEnd = node.role === 'tripEnd';
-    const isDayEnd = node.role === 'dayEnd';
-    const badgeBg = isStart ? '#ecfdf5' : isEnd ? '#fef2f2' : isDayEnd ? '#e0e7ff' : '#f0f9ff';
-    const badgeColor = isStart ? '#059669' : isEnd ? '#dc2626' : isDayEnd ? '#4338ca' : '#0284c7';
-
-    const photoHtml = node.photoUrl
-      ? `<div style="margin-bottom: 8px;">
-           <img src="${node.photoUrl}" alt="${node.name}" style="width: 100%; max-height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid #e2e8f0;" onerror="this.parentElement.style.display='none'" />
-           <div style="font-size: 10px; color: #64748b; margin-top: 2px;">实景核验：${node.photoTitle || node.name}</div>
-         </div>`
-      : `<div style="padding: 6px 8px; background: #f8fafc; border-radius: 6px; border: 1px dashed #cbd5e1; font-size: 10.5px; color: #94a3b8; text-align: center; margin-bottom: 8px;">
-           暂无实景照片（非AI生成）
-         </div>`;
-
-    const etaHtml = node.etaText
-      ? `<div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 6px; background: #f8fafc; padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0;">
-           <span style="color: #64748b;">计划时间:</span>
-           <strong style="color: #0f172a;">${node.etaText}</strong>
-         </div>`
-      : '';
-
-    const html = `
-      <div style="padding: 10px; font-family: system-ui, -apple-system, sans-serif; max-width: 280px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-          <span style="background: ${badgeBg}; color: ${badgeColor}; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 800;">
-            ${node.roleLabel}
-          </span>
-          <span style="font-size: 10.5px; color: #64748b; font-weight: 600;">
-            ${node.dayText}
-          </span>
-        </div>
-
-        <div style="font-weight: 800; font-size: 14.5px; color: #0f172a; margin-bottom: 2px; line-height: 1.3;">
-          ${node.name}
-        </div>
-        <div style="font-size: 11px; color: #64748b; margin-bottom: 8px;">
-          ${node.address || '湖北自驾走廊关键节点'}
-        </div>
-
-        ${photoHtml}
-        ${etaHtml}
-
-        <div style="display: flex; gap: 6px; margin-top: 8px;">
-          <button id="btn-node-view-segment" style="
-            flex: 1; background: #0284c7; color: #ffffff; border: none; border-radius: 6px;
-            padding: 6px 8px; font-size: 11px; font-weight: 700; cursor: pointer;
-          ">
-            查看此路段
-          </button>
-          <button id="btn-node-search-facilities" style="
-            flex: 1; background: #f1f5f9; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 6px;
-            padding: 6px 8px; font-size: 11px; font-weight: 700; cursor: pointer;
-          ">
-            搜索周边设施
-          </button>
-        </div>
-      </div>
-    `;
-
-    this.infoWindow.setContent(html);
+    this.infoWindowOwner = 'node';
+    const content = document.createElement('div');
+    content.className = 'trip-node-actions';
+    content.setAttribute('role', 'group');
+    content.setAttribute('aria-label', node.name);
+    const actions = [
+      { id: 'btn-node-view-segment', label: '查看此路段', callback: onSelectSegment },
+      { id: 'btn-node-search-facilities', label: '周边设施', callback: onShowFacilities },
+      { id: 'btn-node-view-media', label: '周边影像', callback: onShowMedia },
+    ];
+    actions.forEach(({ id, label, callback }) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.id = id;
+      button.textContent = label;
+      button.disabled = !callback;
+      button.onclick = () => {
+        this.infoWindow.close();
+        callback?.(node.segmentId);
+      };
+      content.appendChild(button);
+    });
+    this.infoWindow.setContent(content);
     this.infoWindow.open(this.map, node.coord);
-
-    setTimeout(() => {
-      const btnView = document.getElementById('btn-node-view-segment');
-      if (btnView && onSelectSegment) {
-        btnView.onclick = () => {
-          onSelectSegment(node.segmentId);
-          this.infoWindow.close();
-        };
-      }
-      const btnSearch = document.getElementById('btn-node-search-facilities');
-      if (btnSearch && onSearchNearStop) {
-        btnSearch.onclick = () => {
-          onSearchNearStop(node.name);
-          this.infoWindow.close();
-        };
-      }
-    }, 80);
   }
 
   // 聚焦到指定路段或全程
@@ -677,8 +626,9 @@ class AMapService {
       this.map.remove(this.markerLayers);
       this.markerLayers = [];
     }
-    if (this.infoWindow) {
+    if (this.infoWindow && this.infoWindowOwner === 'poi') {
       this.infoWindow.close();
+      this.infoWindowOwner = null;
     }
   }
 
@@ -805,6 +755,7 @@ class AMapService {
   // 打开 POI 详细气泡
   openPoiInfoWindow(poi: RoutePoi, onAddWaypoint?: (poi: RoutePoi) => void) {
     if (!this.map || !this.api || !this.infoWindow) return;
+    this.infoWindowOwner = 'poi';
 
     const segmentTag = poi.sourceSegmentTitle ? `
       <div style="font-size: 10.5px; color: #4338ca; background: #e0e7ff; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-bottom: 6px; font-weight: 700;">

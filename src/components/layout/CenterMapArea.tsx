@@ -6,6 +6,7 @@ import { TrafficLegend } from '../map/TrafficLegend';
 import { RouteOptionCards } from '../route/RouteOptionCards';
 import { RouteHighlights } from '../route/RouteHighlights';
 import { TripOverview } from '../route/TripOverview';
+import { MapDetailSheet } from './MapDetailSheet';
 import { verifiedStops } from '../../data/stops';
 import { startAmapNavigation } from '../../services/navigationService';
 import { compileTripNodes } from '../../utils/tripNodes';
@@ -17,6 +18,7 @@ export const CenterMapArea: React.FC = () => {
     activeSegmentId,
     activeDay,
     mapMode,
+    mobileActiveTab,
     viewportRevision,
     activeHighlightId,
     setActiveDay,
@@ -44,11 +46,6 @@ export const CenterMapArea: React.FC = () => {
   const isOverview = mapMode === 'trip-overview' || mapMode === 'day-overview';
   const appliedViewportRevision = useRef(-1);
   const appliedHighlightId = useRef<string | null>(null);
-  const detailPanelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    detailPanelRef.current?.scrollTo({ top: 0 });
-  }, [activeSegmentId, activeDay, mapMode]);
 
   // 初始化高德地图
   useEffect(() => {
@@ -110,6 +107,8 @@ export const CenterMapArea: React.FC = () => {
   useEffect(() => {
     const map = amapService.getMap();
     if (!map) return;
+    // 手机影像/设施页隐藏地图时，等回到地图页再按可见尺寸定位。
+    if (window.matchMedia('(max-width: 1024px)').matches && mobileActiveTab !== 'map') return;
 
     amapService.renderRoutes(
       segments,
@@ -148,7 +147,7 @@ export const CenterMapArea: React.FC = () => {
       ? amapService.fitToDay(activeDay, segments)
       : amapService.fitToSegment(activeSegmentId);
     if (fitted) appliedViewportRevision.current = viewportRevision;
-  }, [segments, selectedOptions, routeResults, activeSegmentId, activeDay, mapMode, viewportRevision, overnightStop, activeHighlightId]);
+  }, [segments, selectedOptions, routeResults, activeSegmentId, activeDay, mapMode, viewportRevision, overnightStop, activeHighlightId, mobileActiveTab]);
 
   // 当设施 POIs 变化、选中分类或选中状态变化时，渲染地图 POI Marker
   useEffect(() => {
@@ -240,9 +239,21 @@ export const CenterMapArea: React.FC = () => {
       (targetSegmentId) => {
         enterSegmentDetail(targetSegmentId);
       },
-      (stopName) => {
-        setSearchQuery(stopName);
-        setActiveContentTab('facilities');
+      (segmentId) => {
+        const state = useTripStore.getState();
+        state.enterSegmentDetail(segmentId);
+        state.setSearchQuery('');
+        state.setSelectedCategory('all');
+        state.focusPoi(null);
+        state.setShowFacilitiesOnMap(true);
+        state.setActiveContentTab('facilities');
+        if (window.matchMedia('(max-width: 1024px)').matches) state.setMobileActiveTab('facilities');
+      },
+      (segmentId) => {
+        const state = useTripStore.getState();
+        state.enterSegmentDetail(segmentId);
+        state.setActiveContentTab('videos');
+        if (window.matchMedia('(max-width: 1024px)').matches) state.setMobileActiveTab('media');
       }
     );
   }, [segments, selectedOptions, routeResults, customWaypoints, dayStartTimes, overnightStop]);
@@ -303,7 +314,8 @@ export const CenterMapArea: React.FC = () => {
       </div>
 
       {/* 地图下方随当前范围展示概览或路段详情 */}
-      <div className="center-bottom-panel" ref={detailPanelRef} tabIndex={0} aria-label={isOverview ? '行程概览' : '路段方案和路线亮点'}>
+      <MapDetailSheet resetKey={`${activeSegmentId}:${activeDay}:${mapMode}:${viewportRevision}`}
+        label={isOverview ? '行程概览' : '路段方案和路线亮点'}>
         {isOverview ? <TripOverview /> : currentSeg && (
           <>
             <div className="segment-active-header">
@@ -349,7 +361,7 @@ export const CenterMapArea: React.FC = () => {
             <RouteHighlights />
           </>
         )}
-      </div>
+      </MapDetailSheet>
     </main>
   );
 };

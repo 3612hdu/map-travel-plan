@@ -312,9 +312,14 @@ try {
       window.__amapService.openTripNodeInfoWindow(
         machengNode,
         (segId) => window.__tripStore.enterSegmentDetail(segId),
-        (name) => {
-          window.__tripStore.setSearchQuery(name);
+        (segId) => {
+          window.__tripStore.enterSegmentDetail(segId);
+          window.__tripStore.setSearchQuery('');
           window.__tripStore.setActiveContentTab('facilities');
+        },
+        (segId) => {
+          window.__tripStore.enterSegmentDetail(segId);
+          window.__tripStore.setActiveContentTab('videos');
         }
       );
     }
@@ -332,12 +337,15 @@ try {
     return {
       text: iw?.textContent || '',
       hasViewSegmentBtn,
-      hasSearchFacilitiesBtn
+      hasSearchFacilitiesBtn,
+      hasMediaBtn: Boolean(document.getElementById('btn-node-view-media')),
+      nodeName: document.querySelector('.trip-node-actions')?.getAttribute('aria-label')
     };
   });
 
-  assert(infoWindowContent.text.includes('麻城市'), '卡片应包含地点名称');
-  assert(infoWindowContent.text.includes('途经换乘节点'), '卡片应标注角色');
+  assert.equal(infoWindowContent.nodeName, '麻城市', '操作入口应关联到所选地点');
+  assert(!infoWindowContent.text.includes('计划时间'), '弹窗不再展示冗长详情');
+  assert(infoWindowContent.hasMediaBtn, '应具备周边影像入口');
   assert(infoWindowContent.hasViewSegmentBtn, '应具备 [查看此路段] 动作按钮');
   assert(infoWindowContent.hasSearchFacilitiesBtn, '应具备 [搜索周边设施] 动作按钮');
   pass('RUF4-04-B', '节点地点卡弹出内容完整且具备 [查看此路段] 与 [搜索周边设施] 操作');
@@ -347,9 +355,11 @@ try {
   await wait(400);
   const searchState = await state(() => ({
     query: window.__tripStore.searchQuery,
+    segment: window.__tripStore.activeSegmentId,
     tab: window.__tripStore.activeContentTab
   }));
-  assert.equal(searchState.query, '麻城市', '搜索词应自动填入节点名称');
+  assert.equal(searchState.query, '', '展示本段设施时应清除旧搜索词');
+  assert.equal(searchState.segment, 's2', '设施范围应关联到点击节点的路段');
   assert.equal(searchState.tab, 'facilities', '自动切换至设施 Tab');
   pass('RUF4-04-C', '节点地点卡联动搜索周边设施成功');
 
